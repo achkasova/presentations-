@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Graphik LC";
+  src: url("/fonts/graphik-light.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Graphik LC";
+  src: url("/fonts/graphik-semibold.otf") format("opentype");
+  font-weight: 600 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ALS Sector";
+  src: url("/fonts/als-sector-regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "ALS Sector";
+  src: url("/fonts/als-sector-bold.otf") format("opentype");
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --color-brand-blue: #0050ff;
+  --color-brand-dark: #282a32;
+  --text-primary: #282a32;
+  --text-link: #0050ff;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f7f7;
+  --bg-accent-light: #f2f6ff;
+  --bg-accent-dark: #cfdeff;
+  --ui-divider: #ccccce;
+  --ui-border: #b4b5b7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: "Graphik LC", Arial, Helvetica, sans-serif;
+  font-weight: 300;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.slide-aspect {
+  aspect-ratio: 16 / 9;
+}
+
+@keyframes theme-pop {
+  0% {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.65);
+  }
+
+  65% {
+    opacity: 1;
+    transform: rotate(12deg) scale(1.1);
+  }
+
+  100% {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+.animate-theme-pop {
+  animation: theme-pop 240ms ease-out;
+}
