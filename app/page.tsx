@@ -1,11 +1,12 @@
 "use client";
 
 import {
+  Ban,
   ChevronDown,
-  Check,
   CircleHelp,
   Download,
   FileText,
+  History,
   Image as ImageIcon,
   Laptop,
   Maximize2,
@@ -17,6 +18,7 @@ import {
   Sparkles,
   Smartphone,
   Sun,
+  Undo2,
   X,
 } from "lucide-react";
 import PptxGenJS from "pptxgenjs";
@@ -39,6 +41,7 @@ type PresentationStyle =
 type SlideCount = "5–7" | "8–10" | "11–15";
 type SlideTheme = "dark" | "light";
 type MockupType = "iphone" | "browser" | "macbook";
+type MockupChoice = MockupType | "none";
 
 type TextSource = "text" | "file";
 
@@ -58,6 +61,21 @@ type Slide = {
   kind: "cover" | "agenda" | "content" | "metrics" | "image" | "final";
   body?: string;
   bullets?: string[];
+};
+
+type SlideLayout = {
+  imageX: number;
+  imageY: number;
+  imageScale: number;
+  textX: number;
+  textY: number;
+};
+
+type DeckSnapshot = {
+  slides: Slide[];
+  slideThemes: Record<number, SlideTheme>;
+  slideImages: Record<number, string>;
+  slideLayouts: Record<number, SlideLayout>;
 };
 
 type PresentationPrompt = {
@@ -90,9 +108,10 @@ const slideThemeOptions: Array<{ label: string; value: SlideTheme }> = [
 
 const mockupOptions: Array<{
   label: string;
-  value: MockupType;
+  value: MockupChoice;
   icon: typeof Smartphone;
 }> = [
+  { label: "Без мокапа", value: "none", icon: Ban },
   { label: "iPhone", value: "iphone", icon: Smartphone },
   { label: "Browser", value: "browser", icon: Monitor },
   { label: "Macbook", value: "macbook", icon: Laptop },
@@ -604,7 +623,7 @@ const formatSize = (bytes: number) => {
   return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
 };
 
-const acceptedTextFormats = [".docx", ".txt", ".pdf"];
+const acceptedTextFormats = [".docx", ".txt", ".pdf", ".pptx"];
 const acceptedImageExtensions = [".png", ".jpg", ".jpeg", ".webp"];
 const acceptedImageFormats = ["image/png", "image/jpeg", "image/webp"];
 const sourceFileAccept = [...acceptedTextFormats, ...acceptedImageExtensions].join(",");
@@ -640,8 +659,21 @@ const inferImageMockup = (image: UploadedImage): MockupType => {
   return "browser";
 };
 
-const getMockupOption = (type: MockupType) =>
+const defaultSlideLayout: SlideLayout = {
+  imageX: 0,
+  imageY: 0,
+  imageScale: 100,
+  textX: 0,
+  textY: 0,
+};
+
+const getMockupOption = (type: MockupChoice) =>
   mockupOptions.find((option) => option.value === type) ?? mockupOptions[1];
+
+const getSlideLayout = (
+  layouts: Record<number, SlideLayout>,
+  index: number,
+): SlideLayout => layouts[index] ?? defaultSlideLayout;
 
 const brandSlideAssets = {
   coverPhoto: "/brand/slides/code-photo-4.jpg",
@@ -693,10 +725,11 @@ export default function Home() {
   const [deckTheme, setDeckTheme] = useState<SlideTheme>("dark");
   const [slideThemes, setSlideThemes] = useState<Record<number, SlideTheme>>({});
   const [slideImages, setSlideImages] = useState<Record<number, string>>({});
-  const [autoMockups, setAutoMockups] = useState(true);
-  const [isMockupPanelOpen, setIsMockupPanelOpen] = useState(false);
-  const [imageMockups, setImageMockups] = useState<Record<string, MockupType>>({});
+  const [slideLayouts, setSlideLayouts] = useState<Record<number, SlideLayout>>({});
+  const [imageMockups, setImageMockups] = useState<Record<string, MockupChoice>>({});
   const [slides, setSlides] = useState<Slide[]>(demoSlides.map(hydrateSlide));
+  const [undoStack, setUndoStack] = useState<DeckSnapshot[]>([]);
+  const [slideVersions, setSlideVersions] = useState<Record<number, Slide[]>>({});
   const [generationPrompt, setGenerationPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState("");
@@ -739,6 +772,39 @@ export default function Home() {
     () => materializeSlides(slides),
     [images.length, slides],
   );
+
+  const saveUndoSnapshot = () => {
+    setUndoStack((current) =>
+      [
+        ...current,
+        {
+          slides: currentSlides,
+          slideThemes,
+          slideImages,
+          slideLayouts,
+        },
+      ].slice(-12),
+    );
+  };
+
+  const rememberSlideVersion = (index: number, slide: Slide) => {
+    setSlideVersions((current) => ({
+      ...current,
+      [index]: [slide, ...(current[index] ?? [])].slice(0, 8),
+    }));
+  };
+
+  const revertLastStep = () => {
+    const snapshot = undoStack[undoStack.length - 1];
+    if (!snapshot) return;
+
+    setSlides(snapshot.slides.map(hydrateSlide));
+    setSlideThemes(snapshot.slideThemes);
+    setSlideImages(snapshot.slideImages);
+    setSlideLayouts(snapshot.slideLayouts);
+    setUndoStack((current) => current.slice(0, -1));
+    setHasGenerated(true);
+  };
 
   const handleTextFile = (file?: File) => {
     if (!file) return;
@@ -791,6 +857,7 @@ export default function Home() {
   };
 
   const createPresentation = async () => {
+    saveUndoSnapshot();
     const nextPrompt = buildPresentationPrompt({
       type: presentationType,
       style,
@@ -840,6 +907,7 @@ export default function Home() {
         Object.fromEntries(generatedSlides.map((_, index) => [index, deckTheme])),
       );
       setSlideImages(buildInitialSlideImages(generatedSlides, images));
+      setSlideLayouts({});
       setHasGenerated(true);
 
       if (data.warning) {
@@ -851,6 +919,7 @@ export default function Home() {
         Object.fromEntries(nextSlides.map((_, index) => [index, deckTheme])),
       );
       setSlideImages(buildInitialSlideImages(nextSlides, images));
+      setSlideLayouts({});
       setHasGenerated(true);
       setGenerationError(
         "AI недоступен: проверьте OPENAI_API_KEY. Пока использован локальный шаблон.",
@@ -864,6 +933,7 @@ export default function Home() {
     slideThemes[index] ?? deckTheme;
 
   const updateSlideTheme = (index: number, theme: SlideTheme) => {
+    saveUndoSnapshot();
     setSlideThemes((current) => ({ ...current, [index]: theme }));
   };
 
@@ -871,8 +941,8 @@ export default function Home() {
     updateSlideTheme(index, getSlideTheme(index) === "dark" ? "light" : "dark");
   };
 
-  const getImageMockup = (image: UploadedImage): MockupType =>
-    autoMockups ? inferImageMockup(image) : imageMockups[image.id] ?? inferImageMockup(image);
+  const getImageMockup = (image: UploadedImage): MockupChoice =>
+    imageMockups[image.id] ?? "none";
 
   const getImageById = (imageId?: string) =>
     images.find((image) => image.id === imageId);
@@ -889,7 +959,7 @@ export default function Home() {
     return image ? getImageMockup(image) : undefined;
   };
 
-  const updateImageMockup = (imageId: string, mockup: MockupType) => {
+  const updateImageMockup = (imageId: string, mockup: MockupChoice) => {
     setImageMockups((current) => ({ ...current, [imageId]: mockup }));
   };
 
@@ -908,6 +978,12 @@ export default function Home() {
   };
 
   const replaceSlideAt = (index: number, nextSlide: Slide) => {
+    const previousSlide = currentSlides[index];
+    saveUndoSnapshot();
+    if (previousSlide) {
+      rememberSlideVersion(index, previousSlide);
+    }
+
     setSlides((current) => {
       const materialized = materializeSlides(current);
       return materialized.map((slide, slideIndex) =>
@@ -935,10 +1011,29 @@ export default function Home() {
     const currentSlide = currentSlides[index];
     if (!currentSlide || !getImageById(imageId)) return;
 
+    saveUndoSnapshot();
     setSlideImages((current) => ({ ...current, [index]: imageId }));
     if (currentSlide.kind !== "image") {
       replaceSlideAt(index, { ...currentSlide, kind: "image" });
     }
+  };
+
+  const updateSlideLayout = (index: number, patch: Partial<SlideLayout>) => {
+    setSlideLayouts((current) => ({
+      ...current,
+      [index]: {
+        ...getSlideLayout(current, index),
+        ...patch,
+      },
+    }));
+  };
+
+  const commitSlideLayoutChange = () => {
+    saveUndoSnapshot();
+  };
+
+  const restoreSlideVersion = (index: number, version: Slide) => {
+    replaceSlideAt(index, version);
   };
 
   const downloadPptx = async () => {
@@ -1424,6 +1519,7 @@ export default function Home() {
       }
 
       const assignedImage = getSlideImage(index);
+      const layout = getSlideLayout(slideLayouts, index);
 
       if (slide.kind === "image" && assignedImage) {
         page.addText("02", {
@@ -1448,10 +1544,10 @@ export default function Home() {
         });
         page.addImage({
           data: assignedImage.dataUrl,
-          x: 6.8,
-          y: 1.05,
-          w: 4.9,
-          h: 5.5,
+          x: 6.8 + layout.imageX / 90,
+          y: 1.05 + layout.imageY / 90,
+          w: 4.9 * (layout.imageScale / 100),
+          h: 5.5 * (layout.imageScale / 100),
         });
         return;
       }
@@ -1600,7 +1696,7 @@ export default function Home() {
                     или выберите на компьютере
                   </p>
                   <p className="mt-2 text-xs text-umbrella-muted">
-                    Поддерживаются: .docx, .txt, .pdf, .png, .jpg, .webp
+                    Поддерживаются: .docx, .txt, .pdf, .pptx, .png, .jpg, .webp
                   </p>
                   <button
                     className="mt-3 rounded-md border border-[#9DBBFF] bg-white px-4 py-2 text-sm font-semibold text-umbrella-accent transition hover:bg-umbrella-blueSoft"
@@ -1672,75 +1768,11 @@ export default function Home() {
                       key={image.id}
                       image={image}
                       mockup={getImageMockup(image)}
+                      onMockupChange={(mockup) => updateImageMockup(image.id, mockup)}
                       onRemove={() => removeImage(image.id)}
                     />
                   ))}
                 </div>
-
-                <label className="mt-4 flex items-start gap-3 rounded-lg border border-umbrella-line bg-[#FBFBFE] p-3">
-                  <span className="relative mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border border-umbrella-line bg-white">
-                    <input
-                      className="peer absolute inset-0 opacity-0"
-                      type="checkbox"
-                      checked={autoMockups}
-                      onChange={(event) => setAutoMockups(event.target.checked)}
-                    />
-                    <Check className="h-3.5 w-3.5 text-transparent peer-checked:text-umbrella-accent" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold">
-                      Автоматически подбирать мокапы
-                    </span>
-                    <span className="mt-1 block text-xs leading-4 text-umbrella-muted">
-                      AI определит подходящий мокап для каждого изображения
-                    </span>
-                  </span>
-                </label>
-
-                <button
-                  className="mt-3 text-sm font-semibold text-umbrella-accent transition hover:text-[#0042D6]"
-                  type="button"
-                  onClick={() => {
-                    setIsMockupPanelOpen((current) => !current);
-                    setAutoMockups(false);
-                  }}
-                >
-                  Настроить вручную →
-                </button>
-
-                {isMockupPanelOpen && (
-                  <div className="mt-3 space-y-3 rounded-lg border border-umbrella-line bg-white p-3">
-                    {images.map((image) => (
-                      <div key={image.id} className="grid gap-2">
-                        <p className="truncate text-xs font-semibold text-umbrella-muted">
-                          {image.name}
-                        </p>
-                        <div className="grid grid-cols-3 gap-2">
-                          {mockupOptions.map((option) => {
-                            const Icon = option.icon;
-                            const isSelected = getImageMockup(image) === option.value;
-
-                            return (
-                              <button
-                                key={option.value}
-                                className={`grid h-16 place-items-center rounded-md border text-xs font-semibold transition ${
-                                  isSelected
-                                    ? "border-umbrella-accent bg-umbrella-soft text-umbrella-accent"
-                                    : "border-umbrella-line bg-white text-umbrella-muted hover:border-[#9DBBFF] hover:text-umbrella-ink"
-                                }`}
-                                type="button"
-                                onClick={() => updateImageMockup(image.id, option.value)}
-                              >
-                                <Icon className="h-5 w-5" />
-                                <span>{option.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
           </section>
@@ -1802,10 +1834,21 @@ export default function Home() {
                 </span>
               )}
             </div>
-            <button className="inline-flex items-center gap-2 rounded-lg border border-umbrella-line bg-white px-4 py-2 text-sm font-semibold transition hover:bg-[#F7F7FB]">
-              <Pencil className="h-4 w-4" />
-              Редактировать структуру
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                className="inline-flex items-center gap-2 rounded-lg border border-umbrella-line bg-white px-4 py-2 text-sm font-semibold transition hover:bg-[#F7F7FB] disabled:cursor-not-allowed disabled:opacity-45"
+                type="button"
+                disabled={undoStack.length === 0}
+                onClick={revertLastStep}
+              >
+                <Undo2 className="h-4 w-4" />
+                Отменить
+              </button>
+              <button className="inline-flex items-center gap-2 rounded-lg border border-umbrella-line bg-white px-4 py-2 text-sm font-semibold transition hover:bg-[#F7F7FB]">
+                <Pencil className="h-4 w-4" />
+                Редактировать структуру
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 border-y border-umbrella-line px-6 py-5">
@@ -1818,6 +1861,7 @@ export default function Home() {
                     index={index}
                     assignedImage={getSlideImage(index)}
                     imageMockup={getSlideImageMockup(index)}
+                    layout={getSlideLayout(slideLayouts, index)}
                     slides={currentSlides}
                     theme={getSlideTheme(index)}
                     onThemeToggle={() => toggleSlideTheme(index)}
@@ -1861,9 +1905,14 @@ export default function Home() {
           theme={getSlideTheme(editingSlideIndex)}
           image={getSlideImage(editingSlideIndex)}
           imageMockup={getSlideImageMockup(editingSlideIndex)}
+          layout={getSlideLayout(slideLayouts, editingSlideIndex)}
+          versions={slideVersions[editingSlideIndex] ?? []}
           onClose={() => setEditingSlideIndex(null)}
           onChange={(patch) => updateSlideText(editingSlideIndex, patch)}
           onThemeChange={(theme) => updateSlideTheme(editingSlideIndex, theme)}
+          onLayoutChange={(patch) => updateSlideLayout(editingSlideIndex, patch)}
+          onLayoutChangeStart={commitSlideLayoutChange}
+          onRestoreVersion={(version) => restoreSlideVersion(editingSlideIndex, version)}
           onRegenerate={() => regenerateSlide(editingSlideIndex)}
         />
       )}
@@ -1985,13 +2034,50 @@ function ThemeSegmentedControl({
   );
 }
 
+function RangeControl({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+  onChangeStart,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+  onChangeStart: () => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 flex items-center justify-between text-xs font-bold text-umbrella-muted">
+        <span>{label}</span>
+        <span>{value}</span>
+      </span>
+      <input
+        className="w-full accent-[#0050FF]"
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onMouseDown={onChangeStart}
+        onTouchStart={onChangeStart}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </label>
+  );
+}
+
 function ImageMockupCard({
   image,
   mockup,
+  onMockupChange,
   onRemove,
 }: {
   image: UploadedImage;
-  mockup: MockupType;
+  mockup: MockupChoice;
+  onMockupChange: (mockup: MockupChoice) => void;
   onRemove: () => void;
 }) {
   const option = getMockupOption(mockup);
@@ -2014,10 +2100,25 @@ function ImageMockupCard({
         <p className="min-w-0 truncate text-xs font-semibold text-umbrella-muted">
           {image.name}
         </p>
-        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-umbrella-accent">
+        <label
+          className="relative inline-flex shrink-0 items-center gap-1 text-xs font-bold text-umbrella-accent"
+          onClick={(event) => event.stopPropagation()}
+        >
           <Icon className="h-3.5 w-3.5" />
-          {option.label}
-        </span>
+          <select
+            className="max-w-[98px] cursor-pointer appearance-none bg-transparent pr-4 font-bold outline-none"
+            value={mockup}
+            onChange={(event) => onMockupChange(event.target.value as MockupChoice)}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            {mockupOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-0 h-3 w-3" />
+        </label>
       </div>
       <p className="mt-1 text-[11px] font-medium text-umbrella-muted">
         Перетащите на слайд
@@ -2039,6 +2140,7 @@ function SlideCard({
   index,
   assignedImage,
   imageMockup,
+  layout,
   slides,
   theme,
   onThemeToggle,
@@ -2049,7 +2151,8 @@ function SlideCard({
   slide: Slide;
   index: number;
   assignedImage?: UploadedImage;
-  imageMockup?: MockupType;
+  imageMockup?: MockupChoice;
+  layout: SlideLayout;
   slides: Slide[];
   theme: SlideTheme;
   onThemeToggle: () => void;
@@ -2103,6 +2206,7 @@ function SlideCard({
             slide={slide}
             image={assignedImage}
             imageMockup={imageMockup}
+            layout={layout}
             slides={slides}
             theme={theme}
           />
@@ -2174,19 +2278,29 @@ function SlideEditorModal({
   theme,
   image,
   imageMockup,
+  layout,
+  versions,
   onClose,
   onChange,
   onThemeChange,
+  onLayoutChange,
+  onLayoutChangeStart,
+  onRestoreVersion,
   onRegenerate,
 }: {
   slide: Slide;
   index: number;
   theme: SlideTheme;
   image?: UploadedImage;
-  imageMockup?: MockupType;
+  imageMockup?: MockupChoice;
+  layout: SlideLayout;
+  versions: Slide[];
   onClose: () => void;
   onChange: (patch: Partial<Pick<Slide, "title" | "body" | "bullets">>) => void;
   onThemeChange: (theme: SlideTheme) => void;
+  onLayoutChange: (patch: Partial<SlideLayout>) => void;
+  onLayoutChangeStart: () => void;
+  onRestoreVersion: (version: Slide) => void;
   onRegenerate: () => void;
 }) {
   const bullets = slide.bullets ?? defaultBulletsByKind[slide.kind];
@@ -2219,6 +2333,7 @@ function SlideEditorModal({
               slide={slide}
               image={image}
               imageMockup={imageMockup}
+              layout={layout}
               slides={[slide]}
               theme={theme}
             />
@@ -2245,6 +2360,84 @@ function SlideEditorModal({
               onChange={onThemeChange}
             />
           </div>
+
+          <div className="mt-5 rounded-lg border border-umbrella-line bg-[#FBFBFE] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-sm font-bold">Макет</h4>
+              <button
+                className="text-xs font-bold text-umbrella-accent"
+                type="button"
+                onClick={() => onLayoutChange(defaultSlideLayout)}
+              >
+                Сбросить
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3">
+              <RangeControl
+                label="Размер изображения"
+                value={layout.imageScale}
+                min={60}
+                max={160}
+                onChangeStart={onLayoutChangeStart}
+                onChange={(value) => onLayoutChange({ imageScale: value })}
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <RangeControl
+                  label="Изображение X"
+                  value={layout.imageX}
+                  min={-80}
+                  max={80}
+                  onChangeStart={onLayoutChangeStart}
+                  onChange={(value) => onLayoutChange({ imageX: value })}
+                />
+                <RangeControl
+                  label="Изображение Y"
+                  value={layout.imageY}
+                  min={-80}
+                  max={80}
+                  onChangeStart={onLayoutChangeStart}
+                  onChange={(value) => onLayoutChange({ imageY: value })}
+                />
+                <RangeControl
+                  label="Текст X"
+                  value={layout.textX}
+                  min={-80}
+                  max={80}
+                  onChangeStart={onLayoutChangeStart}
+                  onChange={(value) => onLayoutChange({ textX: value })}
+                />
+                <RangeControl
+                  label="Текст Y"
+                  value={layout.textY}
+                  min={-80}
+                  max={80}
+                  onChangeStart={onLayoutChangeStart}
+                  onChange={(value) => onLayoutChange({ textY: value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {versions.length > 0 && (
+            <div className="mt-5 rounded-lg border border-umbrella-line bg-white p-4">
+              <div className="flex items-center gap-2">
+                <History className="h-4 w-4 text-umbrella-accent" />
+                <h4 className="text-sm font-bold">История версий</h4>
+              </div>
+              <div className="mt-3 space-y-2">
+                {versions.map((version, versionIndex) => (
+                  <button
+                    key={`${version.title}-${versionIndex}`}
+                    className="w-full rounded-md border border-umbrella-line px-3 py-2 text-left text-xs font-semibold transition hover:border-[#9DBBFF] hover:bg-umbrella-soft"
+                    type="button"
+                    onClick={() => onRestoreVersion(version)}
+                  >
+                    Версия {versions.length - versionIndex}: {version.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <label className="mt-5 block">
             <span className="mb-2 block text-sm font-bold">Заголовок</span>
@@ -2297,9 +2490,21 @@ function MockupFrame({
   compact = false,
 }: {
   image: UploadedImage;
-  mockup: MockupType;
+  mockup: MockupChoice;
   compact?: boolean;
 }) {
+  if (mockup === "none") {
+    return (
+      <img
+        src={image.dataUrl}
+        alt={image.name}
+        className={`rounded-md object-contain shadow-card ${
+          compact ? "h-20 w-full" : "max-h-[190px] w-36"
+        }`}
+      />
+    );
+  }
+
   if (mockup === "iphone") {
     return (
       <div
@@ -2356,12 +2561,14 @@ function SlidePreview({
   slide,
   image,
   imageMockup,
+  layout,
   slides,
   theme,
 }: {
   slide: Slide;
   image?: UploadedImage;
-  imageMockup?: MockupType;
+  imageMockup?: MockupChoice;
+  layout: SlideLayout;
   slides: Slide[];
   theme: SlideTheme;
 }) {
@@ -2482,7 +2689,12 @@ function SlidePreview({
         className={`absolute inset-y-0 right-0 h-full w-1/2 object-cover ${isLight ? "opacity-15" : "opacity-25"}`}
       />
       <div className="absolute right-4 top-6 h-28 w-28 rounded-full border-[18px] border-umbrella-accent/50" />
-      <div className="relative z-10">
+      <div
+        className="relative z-10"
+        style={{
+          transform: `translate(${layout.textX}px, ${layout.textY}px)`,
+        }}
+      >
         <div className="h-1 w-12 bg-umbrella-accent" />
         <h3 className="mt-4 font-display text-xl font-bold">{slide.title}</h3>
         <div className="mt-7 space-y-3">
@@ -2499,10 +2711,15 @@ function SlidePreview({
         </div>
       </div>
       {slide.kind === "image" && image ? (
-        <div className="relative z-10 flex h-full w-36 items-center justify-center">
+        <div
+          className="relative z-10 flex h-full w-36 items-center justify-center"
+          style={{
+            transform: `translate(${layout.imageX}px, ${layout.imageY}px) scale(${layout.imageScale / 100})`,
+          }}
+        >
           <MockupFrame
             image={image}
-            mockup={imageMockup ?? inferImageMockup(image)}
+            mockup={imageMockup ?? "none"}
           />
         </div>
       ) : (
