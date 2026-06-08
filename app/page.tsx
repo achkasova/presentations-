@@ -418,20 +418,6 @@ const presentationPrompts: Record<PresentationType, PresentationPrompt> = {
   },
 };
 
-const presentationFormatRequirements = [
-  "Формат 16:9, расчетная база 1920x1080.",
-  "Все слайды строятся на единой 12-column grid с внешними полями 80-100 px по бокам, 60-80 px сверху и 50-70 px снизу.",
-  "Темная палитра: основной фон #020814, второй фон #07111E, карточки #0B1526, границы rgba(255,255,255,0.06).",
-  "Акцент #005CFF, светлый акцент #3A7BFF, основной текст #FFFFFF, вторичный текст #B6C0D1.",
-  "Шрифт должен быть Inter-подобным. Заголовки крупные и bold, без декоративной перегрузки.",
-  "Cover: 45% текст и 55% изображение, структура: лого, синий штрих, заголовок, подзаголовок, дата.",
-  "Agenda: 40% список и 60% фото, номера пунктов синим.",
-  "Section Intro: крупный номер 80-100 px, заголовок 48-56 px, описание 18-22 px.",
-  "KPI: карточки около 280x220 px, padding 24 px, число 48-60 px bold, описание 16 px.",
-  "Screenshot slide: сетка 40/60, слева заголовок, описание и список, справа скриншот.",
-  "Поддерживаемые мастер-слайды: Cover, Agenda, Section Intro, Overview, KPI, Feature + Screenshot, Technology Stack, Team, Timeline, Next Steps, Q&A, Thank You.",
-];
-
 const defaultBulletsByKind: Record<Slide["kind"], string[]> = {
   cover: ["Building digital products that drive results"],
   agenda: ["Project Overview", "Goals & Success Metrics", "Scope of Work"],
@@ -569,7 +555,6 @@ const buildPresentationPrompt = ({
     `Цель: ${scenario.goal}`,
     `Стиль: ${style}. Количество слайдов: ${count}.`,
     `Рекомендуемая структура: ${scenario.structure.join(" -> ")}.`,
-    `Требования к формату: ${presentationFormatRequirements.join(" ")}`,
     `Правила: ${scenario.rules.join(" ")}`,
     hasImages
       ? "Есть изображения: подбери для них слайды с демонстрацией и не дублируй текстом то, что видно на экране."
@@ -642,11 +627,6 @@ const inferImageMockup = (image: UploadedImage): MockupType => {
 
 const getMockupOption = (type: MockupType) =>
   mockupOptions.find((option) => option.value === type) ?? mockupOptions[1];
-
-const getFirstWord = (text: string) => text.trim().split(/\s+/)[0] || text;
-
-const getPptxRuleWidth = (title: string) =>
-  Math.max(0.42, Math.min(1.9, getFirstWord(title).length * 0.16));
 
 const brandSlideAssets = {
   coverPhoto: "/brand/slides/code-photo-4.jpg",
@@ -857,41 +837,30 @@ export default function Home() {
     pptx.title = "Umbrella Presentation";
     pptx.company = "Umbrella";
     pptx.theme = {
-      headFontFace: "Inter",
-      bodyFontFace: "Inter",
-    };
-
-    const layout = {
-      slideW: 13.33,
-      slideH: 7.5,
-      marginX: 0.68,
-      marginTop: 0.5,
-      marginBottom: 0.42,
-      gutter: 0.22,
-      colW: 0.91,
-      cardGap: 0.22,
+      headFontFace: "ALS Sector",
+      bodyFontFace: "Graphik LC",
     };
 
     const darkPalette = {
-      dark: "020814",
-      dark2: "07111E",
-      panel: "0B1526",
-      panel2: "07111E",
-      blue: "005CFF",
-      blue2: "3A7BFF",
-      soft: "B6C0D1",
+      dark: "07111C",
+      dark2: "0B1724",
+      panel: "101D2B",
+      panel2: "142234",
+      blue: "0050FF",
+      blue2: "0E6BFF",
+      soft: "CFDEFF",
       white: "FFFFFF",
-      muted: "B6C0D1",
-      line: "FFFFFF",
+      muted: "B8C3D4",
+      line: "263545",
     };
     const lightPalette = {
       dark: "F7F7F7",
       dark2: "FFFFFF",
       panel: "FFFFFF",
       panel2: "F2F6FF",
-      blue: "005CFF",
-      blue2: "3A7BFF",
-      soft: "005CFF",
+      blue: "0050FF",
+      blue2: "0E6BFF",
+      soft: "0050FF",
       white: "282A32",
       muted: "6B6D75",
       line: "B4B5B7",
@@ -903,32 +872,46 @@ export default function Home() {
       page.addShape(pptx.ShapeType.rect, {
         x: 0,
         y: 0,
-        w: layout.slideW,
-        h: layout.slideH,
+        w: 13.33,
+        h: 7.5,
         line: { color: C.dark, transparency: 100 },
         fill: { color: C.dark },
       });
       page.addShape(pptx.ShapeType.rect, {
         x: 0,
         y: 0,
-        w: layout.slideW,
-        h: layout.slideH,
+        w: 13.33,
+        h: 7.5,
         line: { color: C.dark, transparency: 100 },
-        fill: { color: C.dark2, transparency: 40 },
+        fill: { color: C.blue, transparency: 94 },
+      });
+      page.addShape(pptx.ShapeType.line, {
+        x: 9.2,
+        y: 0.65,
+        w: 3.4,
+        h: 1.1,
+        line: { color: C.blue, transparency: 72, width: 1.2 },
+      });
+      page.addShape(pptx.ShapeType.line, {
+        x: 9.85,
+        y: 5.8,
+        w: 2.7,
+        h: -1.25,
+        line: { color: C.blue, transparency: 82, width: 1 },
       });
       page.addText("Umbrella IT", {
-        x: layout.marginX,
-        y: 0.38,
+        x: 0.55,
+        y: 0.36,
         w: 1.35,
         h: 0.24,
         color: C.white,
-        fontFace: "Inter",
+        fontFace: "Graphik LC",
         bold: true,
         fontSize: 9,
         margin: 0,
       });
       page.addShape(pptx.ShapeType.arc, {
-        x: 0.49,
+        x: 0.36,
         y: 0.37,
         w: 0.18,
         h: 0.18,
@@ -936,14 +919,14 @@ export default function Home() {
         fill: { color: C.blue },
       });
       page.addShape(pptx.ShapeType.line, {
-        x: layout.marginX,
+        x: 0.36,
         y: 6.94,
         w: 0.34,
         h: 0,
-        line: { color: C.line, transparency: 94, width: 0.5 },
+        line: { color: C.line, width: 0.5 },
       });
       page.addText(String(pageNumber), {
-        x: layout.marginX + 0.02,
+        x: 0.38,
         y: 6.86,
         w: 0.28,
         h: 0.18,
@@ -953,16 +936,11 @@ export default function Home() {
       });
     };
 
-    const addBlueRule = (
-      page: PptxGenJS.Slide,
-      title: string,
-      x = layout.marginX,
-      y = 0.86,
-    ) => {
+    const addBlueRule = (page: PptxGenJS.Slide, x = 0.68, y = 0.78) => {
       page.addShape(pptx.ShapeType.rect, {
         x,
         y,
-        w: getPptxRuleWidth(title),
+        w: 0.7,
         h: 0.04,
         line: { color: C.blue },
         fill: { color: C.blue },
@@ -972,9 +950,9 @@ export default function Home() {
     const addTitle = (
       page: PptxGenJS.Slide,
       title: string,
-      x = layout.marginX,
+      x = 0.68,
       y = 0.95,
-      w = 5.4,
+      w = 5.2,
     ) => {
       page.addText(title, {
         x,
@@ -982,9 +960,9 @@ export default function Home() {
         w,
         h: 0.72,
         color: C.white,
-        fontFace: "Inter",
+        fontFace: "Graphik LC",
         bold: true,
-        fontSize: 30,
+        fontSize: 22,
         fit: "shrink",
         margin: 0,
         breakLine: false,
@@ -1038,97 +1016,104 @@ export default function Home() {
       if (slide.kind === "cover") {
         const coverTitle =
           slide.title === "Титульный слайд" ? presentationType : slide.title;
-        addBlueRule(page, coverTitle, layout.marginX, 1.58);
+        addBlueRule(page, 0.68, 1.35);
         page.addText("Project", {
-          x: layout.marginX,
-          y: 1.82,
+          x: 0.68,
+          y: 1.72,
           w: 4.4,
-          h: 0.58,
+          h: 0.48,
           color: C.white,
           bold: true,
-          fontSize: 42,
+          fontSize: 34,
           margin: 0,
         });
         page.addText(coverTitle, {
-          x: layout.marginX,
-          y: 2.48,
-          w: 4.95,
-          h: 0.78,
+          x: 0.68,
+          y: 2.25,
+          w: 5.5,
+          h: 0.58,
           color: C.blue,
           bold: true,
-          fontSize: 46,
+          fontSize: 36,
           margin: 0,
           fit: "shrink",
         });
         page.addText(slide.body ?? "Building digital products that drive results", {
-          x: layout.marginX,
-          y: 3.45,
-          w: 4.6,
+          x: 0.7,
+          y: 3.08,
+          w: 4.5,
           h: 0.46,
-          color: C.muted,
-          fontSize: 18,
+          color: "FFFFFF",
+          fontSize: 15,
           margin: 0,
           breakLine: false,
         });
         page.addShape(pptx.ShapeType.rect, {
-          x: 6.0,
+          x: 6.15,
           y: 0,
-          w: 7.33,
-          h: layout.slideH,
+          w: 7.18,
+          h: 7.5,
           line: { color: C.dark, transparency: 100 },
-          fill: { color: C.dark2 },
+          fill: { color: C.blue, transparency: 88 },
         });
         if (brandImages.coverPhoto) {
           page.addImage({
             data: brandImages.coverPhoto,
-            x: 6.0,
+            x: 6.15,
             y: 0,
-            w: 7.33,
-            h: layout.slideH,
+            w: 7.18,
+            h: 7.5,
             transparency: 18,
           });
           page.addShape(pptx.ShapeType.rect, {
-            x: 6.0,
+            x: 6.15,
             y: 0,
-            w: 7.33,
-            h: layout.slideH,
+            w: 7.18,
+            h: 7.5,
             line: { color: C.dark, transparency: 100 },
             fill: { color: C.dark, transparency: 32 },
           });
         } else {
           addCodeVisual(page, 7.45, 1.65);
         }
+        page.addShape(pptx.ShapeType.line, {
+          x: 7.1,
+          y: 5.55,
+          w: 3.8,
+          h: -0.4,
+          line: { color: C.blue, transparency: 30, width: 1.5 },
+        });
         page.addText(new Date().toLocaleDateString("ru-RU"), {
-          x: layout.marginX,
+          x: 0.7,
           y: 6.28,
           w: 2.2,
           h: 0.22,
           color: C.muted,
-          fontSize: 12,
+          fontSize: 8,
           margin: 0,
         });
         return;
       }
 
       if (slide.kind === "final") {
-        page.addText(String(index + 1).padStart(2, "0"), {
-          x: layout.marginX,
+        page.addText("05", {
+          x: 0.68,
           y: 1.35,
           w: 1.7,
           h: 0.78,
           color: C.blue,
           bold: true,
-          fontSize: 68,
+          fontSize: 46,
           margin: 0,
         });
-        addTitle(page, slide.title, layout.marginX, 2.35, 4.8);
+        addTitle(page, slide.title, 0.72, 2.22, 4.6);
         page.addText(slide.body ?? "Готовы ответить на ваши вопросы", {
-          x: layout.marginX,
-          y: 3.28,
+          x: 0.75,
+          y: 3.08,
           w: 4.4,
           h: 0.35,
           color: C.muted,
-          fontSize: 16,
+          fontSize: 12,
           margin: 0,
         });
         page.addShape(pptx.ShapeType.roundRect, {
@@ -1137,7 +1122,7 @@ export default function Home() {
           w: 2.4,
           h: 1.65,
           rectRadius: 0.14,
-          line: { color: C.line, transparency: 94 },
+          line: { color: C.line, transparency: 20 },
           fill: { color: C.panel2, transparency: 5 },
         });
         if (brandImages.questionIllustration) {
@@ -1164,7 +1149,7 @@ export default function Home() {
         page.addShape(pptx.ShapeType.rect, {
           x: 0,
           y: 6.3,
-          w: layout.slideW,
+          w: 13.33,
           h: 1.2,
           line: { color: C.blue },
           fill: { color: C.blue },
@@ -1192,7 +1177,7 @@ export default function Home() {
         return;
       }
 
-      addBlueRule(page, slide.title, layout.marginX, 0.9);
+      addBlueRule(page);
       addTitle(page, slide.title);
 
       if (slide.kind === "agenda") {
@@ -1202,39 +1187,39 @@ export default function Home() {
             : currentSlides.slice(2, -1).map((item) => item.title);
         agendaItems.forEach((item, itemIndex) => {
           page.addText(String(itemIndex + 1).padStart(2, "0"), {
-            x: layout.marginX,
-            y: 1.85 + itemIndex * 0.52,
-            w: 0.42,
-            h: 0.24,
+            x: 0.72,
+            y: 1.85 + itemIndex * 0.43,
+            w: 0.35,
+            h: 0.2,
             color: C.blue,
             bold: true,
-            fontSize: 12,
+            fontSize: 10,
             margin: 0,
           });
           page.addText(item, {
-            x: 1.24,
-            y: 1.81 + itemIndex * 0.52,
-            w: 4.2,
-            h: 0.3,
+            x: 1.22,
+            y: 1.82 + itemIndex * 0.43,
+            w: 7,
+            h: 0.28,
             color: C.white,
-            fontSize: 14,
+            fontSize: 12,
             margin: 0,
           });
         });
         if (brandImages.agendaPhoto) {
           page.addImage({
             data: brandImages.agendaPhoto,
-            x: 5.45,
+            x: 6.45,
             y: 0,
-            w: 7.88,
-            h: layout.slideH,
+            w: 6.88,
+            h: 7.5,
             transparency: 10,
           });
           page.addShape(pptx.ShapeType.rect, {
-            x: 5.45,
+            x: 5.75,
             y: 0,
-            w: 7.88,
-            h: layout.slideH,
+            w: 7.58,
+            h: 7.5,
             line: { color: C.dark, transparency: 100 },
             fill: { color: C.dark, transparency: 40 },
           });
@@ -1246,34 +1231,24 @@ export default function Home() {
 
       if (slide.kind === "metrics") {
         page.addText("Key metrics", {
-          x: layout.marginX,
+          x: 0.72,
           y: 1.9,
           w: 3.1,
           h: 0.3,
           color: C.muted,
-          fontSize: 14,
+          fontSize: 12,
           margin: 0,
         });
         const metricItems = slide.bullets ?? defaultBulletsByKind.metrics;
         ["85%", "60%", "4.7"].forEach((value, metricIndex) => {
-          const cardX = layout.marginX + metricIndex * 2.22;
-          page.addShape(pptx.ShapeType.roundRect, {
-            x: cardX,
-            y: 2.42,
-            w: 1.95,
-            h: 1.55,
-            rectRadius: 0.08,
-            line: { color: C.line, transparency: 94 },
-            fill: { color: C.panel },
-          });
           page.addText(value, {
-            x: cardX + 0.2,
-            y: 2.68,
-            w: 1.45,
-            h: 0.48,
+            x: 0.72 + metricIndex * 2.4,
+            y: 2.45,
+            w: 1.65,
+            h: 0.42,
             color: C.blue,
             bold: true,
-            fontSize: 40,
+            fontSize: 28,
             margin: 0,
           });
           page.addText(
@@ -1282,12 +1257,12 @@ export default function Home() {
                 metricIndex
               ],
             {
-              x: cardX + 0.2,
-              y: 3.25,
+              x: 0.74 + metricIndex * 2.4,
+              y: 3.0,
               w: 1.5,
               h: 0.42,
-              color: C.muted,
-              fontSize: 12,
+              color: C.white,
+              fontSize: 9,
               margin: 0,
             },
           );
@@ -1317,7 +1292,7 @@ export default function Home() {
           });
         });
         page.addShape(pptx.ShapeType.rect, {
-          x: layout.marginX,
+          x: 0.72,
           y: 6.08,
           w: 9.6,
           h: 0.45,
@@ -1337,51 +1312,32 @@ export default function Home() {
       }
 
       if (slide.kind === "image" && images[0]) {
-        page.addText(String(index + 1).padStart(2, "0"), {
-          x: layout.marginX,
-          y: 1.45,
+        page.addText("02", {
+          x: 0.7,
+          y: 1.75,
           w: 1.3,
           h: 0.62,
           color: C.blue,
           bold: true,
-          fontSize: 68,
+          fontSize: 42,
           margin: 0,
         });
         page.addText(slide.title, {
-          x: layout.marginX,
-          y: 2.58,
-          w: 4.4,
-          h: 0.62,
+          x: 0.76,
+          y: 2.62,
+          w: 4.2,
+          h: 0.48,
           color: C.white,
           bold: true,
-          fontSize: 30,
+          fontSize: 22,
           margin: 0,
-        });
-        page.addText(slide.body ?? "Ключевой экран и сценарий использования", {
-          x: layout.marginX,
-          y: 3.42,
-          w: 4.35,
-          h: 0.55,
-          color: C.muted,
-          fontSize: 15,
-          fit: "shrink",
-          margin: 0,
-        });
-        page.addShape(pptx.ShapeType.roundRect, {
-          x: 5.65,
-          y: 0.82,
-          w: 6.75,
-          h: 5.75,
-          rectRadius: 0.1,
-          line: { color: C.line, transparency: 94 },
-          fill: { color: C.panel },
         });
         page.addImage({
           data: images[0].dataUrl,
-          x: 5.92,
-          y: 1.08,
-          w: 6.2,
-          h: 5.2,
+          x: 6.8,
+          y: 1.05,
+          w: 4.9,
+          h: 5.5,
         });
         return;
       }
@@ -1389,7 +1345,7 @@ export default function Home() {
       (slide.bullets ?? defaultBulletsByKind.content).slice(0, 4).forEach(
         (item, itemIndex) => {
           page.addShape(pptx.ShapeType.roundRect, {
-            x: layout.marginX,
+            x: 0.72,
             y: 2.0 + itemIndex * 0.74,
             w: 0.2,
             h: 0.2,
@@ -1404,7 +1360,7 @@ export default function Home() {
             h: 0.28,
             color: C.white,
             bold: true,
-            fontSize: 14,
+            fontSize: 12,
             margin: 0,
           });
         },
@@ -1416,12 +1372,12 @@ export default function Home() {
             ? `Материалы взяты из файла: ${textFile.name}`
             : slide.body ?? "Здесь будет краткое содержание из загруженных материалов.",
         {
-          x: layout.marginX,
+          x: 0.72,
           y: 4.7,
           w: 4.7,
           h: 0.85,
           color: C.muted,
-          fontSize: 14,
+          fontSize: 12,
           breakLine: false,
           fit: "shrink",
           margin: 0,
@@ -2217,27 +2173,6 @@ function MockupFrame({
   );
 }
 
-function TitleWithAccent({
-  title,
-  className,
-}: {
-  title: string;
-  className: string;
-}) {
-  const [firstWord = title, ...restWords] = title.trim().split(/\s+/);
-  const restTitle = restWords.join(" ");
-
-  return (
-    <h3 className={className}>
-      <span className="inline-flex flex-col items-start align-top">
-        <span className="mb-3 h-1 w-full bg-[#005CFF]" />
-        <span>{firstWord}</span>
-      </span>
-      {restTitle ? ` ${restTitle}` : ""}
-    </h3>
-  );
-}
-
 function SlidePreview({
   slide,
   images,
@@ -2252,15 +2187,13 @@ function SlidePreview({
   theme: SlideTheme;
 }) {
   const isLight = theme === "light";
-  const previewBg = isLight ? "bg-[#F7F7F7]" : "bg-[#020814]";
+  const previewBg = isLight ? "bg-[#F7F7F7]" : "bg-[#07111C]";
   const previewText = isLight ? "text-[#282A32]" : "text-white";
-  const secondaryText = isLight ? "text-[#6B6D75]" : "text-[#B6C0D1]";
-  const panelBg = isLight ? "bg-white" : "bg-[#0B1526]";
+  const secondaryText = isLight ? "text-[#6B6D75]" : "text-white";
+  const panelBg = isLight ? "bg-white" : "bg-white/5";
   const imageOpacity = isLight ? "opacity-20" : "opacity-35";
 
   if (slide.kind === "cover" || slide.kind === "final") {
-    const coverTitle = slide.kind === "cover" ? "Umbrella Deck Builder" : "Спасибо!";
-
     return (
       <div className={`relative h-full overflow-hidden p-5 ${previewBg} ${previewText}`}>
         <img
@@ -2270,27 +2203,23 @@ function SlidePreview({
               : brandSlideAssets.questionIllustration
           }
           alt=""
-          className={`absolute inset-y-0 right-0 h-full w-[55%] object-cover ${imageOpacity}`}
+          className={`absolute inset-y-0 right-0 h-full w-1/2 object-cover ${imageOpacity}`}
         />
+        <div className="absolute -right-8 top-3 h-40 w-40 rounded-full border-[34px] border-umbrella-accent opacity-70" />
         <LogoMark compact />
-        <div className="mt-10 max-w-[45%]">
+        <div className="mt-8 max-w-[70%]">
           {slide.kind === "cover" ? (
             <>
-              <p className={isLight ? "mt-3 text-[10px] text-[#005CFF]" : "mt-3 text-[10px] text-[#3A7BFF]"}>Демо проекта</p>
-              <TitleWithAccent
-                title={coverTitle}
-                className="mt-2 font-display text-2xl font-bold leading-snug"
-              />
-              <p className={isLight ? "mt-6 text-[10px] text-umbrella-muted" : "mt-6 text-[10px] text-[#B6C0D1]"}>Июнь 2026</p>
+              <p className={isLight ? "text-[10px] text-umbrella-accent" : "text-[10px] text-umbrella-blueSoft"}>Демо проекта</p>
+              <h3 className="mt-2 font-display text-xl font-bold leading-snug">
+                Umbrella Deck Builder
+              </h3>
+              <p className={isLight ? "mt-6 text-[10px] text-umbrella-muted" : "mt-6 text-[10px] text-umbrella-blueSoft"}>Июнь 2026</p>
             </>
           ) : (
             <>
-              <p className="text-5xl font-black text-[#005CFF]">12</p>
-              <TitleWithAccent
-                title={coverTitle}
-                className="mt-4 font-display text-2xl font-bold leading-snug"
-              />
-              <p className={isLight ? "mt-3 text-xs text-umbrella-muted" : "mt-3 text-xs text-[#B6C0D1]"}>
+              <h3 className="mt-8 font-display text-2xl font-bold">Спасибо!</h3>
+              <p className={isLight ? "mt-3 text-xs text-umbrella-muted" : "mt-3 text-xs text-umbrella-soft"}>
                 Готовы ответить на ваши вопросы
               </p>
             </>
@@ -2310,17 +2239,15 @@ function SlidePreview({
         <img
           src={brandSlideAssets.agendaPhoto}
           alt=""
-          className={`absolute inset-y-0 right-0 h-full w-[60%] object-cover ${imageOpacity}`}
+          className={`absolute inset-y-0 right-0 h-full w-1/2 object-cover ${imageOpacity}`}
         />
-        <div className="absolute right-0 top-0 h-full w-[60%] bg-[#020814]/45" />
-        <TitleWithAccent
-          title={slide.title}
-          className="mt-5 font-display text-xl font-bold leading-snug"
-        />
+        <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_center,#0050FF33,transparent_55%)]" />
+        <div className="h-1 w-12 bg-umbrella-accent" />
+        <h3 className="mt-4 font-display text-xl font-bold">{slide.title}</h3>
         <div className="mt-5 space-y-3">
           {agendaItems.slice(0, 6).map((item, index) => (
             <div key={`${item}-${index}`} className="flex items-center gap-4">
-              <span className="w-6 text-[10px] font-bold text-[#005CFF]">
+              <span className="w-6 text-[10px] font-bold text-umbrella-accent">
                 {String(index + 1).padStart(2, "0")}
               </span>
               <span className={`text-xs font-medium ${secondaryText}`}>{item}</span>
@@ -2340,14 +2267,12 @@ function SlidePreview({
           alt=""
           className="absolute bottom-5 right-8 h-36 w-36 object-contain opacity-90"
         />
-        <TitleWithAccent
-          title={slide.title}
-          className="mt-5 font-display text-xl font-bold leading-snug"
-        />
+        <div className="h-1 w-12 bg-umbrella-accent" />
+        <h3 className="mt-4 font-display text-xl font-bold">{slide.title}</h3>
         <div className="mt-8 grid grid-cols-3 gap-4">
           {["85%", "60%", "4.7"].map((value, index) => (
-            <div key={value} className={`rounded-md border border-white/[0.06] p-4 text-left ${panelBg}`}>
-              <p className="text-2xl font-black text-[#005CFF]">{value}</p>
+            <div key={value} className={`rounded-md p-4 text-left ${panelBg}`}>
+              <p className="text-2xl font-black text-umbrella-accent">{value}</p>
               <p className={`mt-2 text-[10px] leading-4 ${secondaryText}`}>
                 {
                   metricItems[index]?.replace(/^[-+0-9.%\s]+/, "") ??
@@ -2361,13 +2286,13 @@ function SlidePreview({
             </div>
           ))}
         </div>
-        <div className="absolute bottom-6 left-5 right-5 h-12 border-b border-[#005CFF]/50 bg-gradient-to-t from-[#005CFF66] to-transparent" />
+        <div className="absolute bottom-6 left-5 right-5 h-12 border-b border-umbrella-accent/50 bg-gradient-to-t from-[#0050FF66] to-transparent" />
       </div>
     );
   }
 
   return (
-    <div className={`relative grid h-full grid-cols-[40%_1fr] gap-4 overflow-hidden p-5 ${previewBg} ${previewText}`}>
+    <div className={`relative grid h-full grid-cols-[1fr_auto] gap-4 overflow-hidden p-5 ${previewBg} ${previewText}`}>
       <img
         src={
           slide.kind === "image"
@@ -2375,18 +2300,17 @@ function SlidePreview({
             : brandSlideAssets.contentPhoto
         }
         alt=""
-        className={`absolute inset-y-0 right-0 h-full w-[60%] object-cover ${isLight ? "opacity-15" : "opacity-18"}`}
+        className={`absolute inset-y-0 right-0 h-full w-1/2 object-cover ${isLight ? "opacity-15" : "opacity-25"}`}
       />
+      <div className="absolute right-4 top-6 h-28 w-28 rounded-full border-[18px] border-umbrella-accent/50" />
       <div className="relative z-10">
-        <TitleWithAccent
-          title={slide.title}
-          className="mt-5 font-display text-xl font-bold leading-snug"
-        />
+        <div className="h-1 w-12 bg-umbrella-accent" />
+        <h3 className="mt-4 font-display text-xl font-bold">{slide.title}</h3>
         <div className="mt-7 space-y-3">
           {(slide.bullets ?? defaultBulletsByKind.content).slice(0, 3).map(
             (item) => (
               <div key={item} className="flex items-center gap-2">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-[#3A7BFF]/20 text-[10px] font-bold text-[#3A7BFF]">
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-umbrella-blueSoft text-[10px] font-bold text-umbrella-accent">
                   ✓
                 </span>
                 <span className={`text-xs font-medium ${secondaryText}`}>{item}</span>
@@ -2396,7 +2320,7 @@ function SlidePreview({
         </div>
       </div>
       {slide.kind === "image" && images[0] ? (
-        <div className="relative z-10 flex h-full items-center justify-center rounded-md border border-white/[0.06] bg-[#0B1526] p-3">
+        <div className="relative z-10 flex h-full w-36 items-center justify-center">
           <MockupFrame
             image={images[0]}
             mockup={imageMockup ?? inferImageMockup(images[0])}
