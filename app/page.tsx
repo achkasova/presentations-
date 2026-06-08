@@ -67,6 +67,7 @@ type SlideLayout = {
   imageX: number;
   imageY: number;
   imageScale: number;
+  imageTransparency: number;
   textX: number;
   textY: number;
 };
@@ -663,6 +664,7 @@ const defaultSlideLayout: SlideLayout = {
   imageX: 0,
   imageY: 0,
   imageScale: 100,
+  imageTransparency: 0,
   textX: 0,
   textY: 0,
 };
@@ -673,7 +675,7 @@ const getMockupOption = (type: MockupChoice) =>
 const getSlideLayout = (
   layouts: Record<number, SlideLayout>,
   index: number,
-): SlideLayout => layouts[index] ?? defaultSlideLayout;
+): SlideLayout => ({ ...defaultSlideLayout, ...(layouts[index] ?? {}) });
 
 const brandSlideAssets = {
   coverPhoto: "/brand/slides/code-photo-4.jpg",
@@ -1548,6 +1550,7 @@ export default function Home() {
           y: 1.05 + layout.imageY / 90,
           w: 4.9 * (layout.imageScale / 100),
           h: 5.5 * (layout.imageScale / 100),
+          transparency: layout.imageTransparency,
         });
         return;
       }
@@ -2377,9 +2380,17 @@ function SlideEditorModal({
                 label="Размер изображения"
                 value={layout.imageScale}
                 min={60}
-                max={160}
+                max={300}
                 onChangeStart={onLayoutChangeStart}
                 onChange={(value) => onLayoutChange({ imageScale: value })}
+              />
+              <RangeControl
+                label="Прозрачность изображения"
+                value={layout.imageTransparency}
+                min={0}
+                max={90}
+                onChangeStart={onLayoutChangeStart}
+                onChange={(value) => onLayoutChange({ imageTransparency: value })}
               />
               <div className="grid grid-cols-2 gap-3">
                 <RangeControl
@@ -2715,6 +2726,7 @@ function SlidePreview({
           className="relative z-10 flex h-full w-36 items-center justify-center"
           style={{
             transform: `translate(${layout.imageX}px, ${layout.imageY}px) scale(${layout.imageScale / 100})`,
+            opacity: (100 - layout.imageTransparency) / 100,
           }}
         >
           <MockupFrame
