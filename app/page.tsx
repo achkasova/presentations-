@@ -665,6 +665,8 @@ export default function Home() {
   const [imageMockups, setImageMockups] = useState<Record<string, MockupType>>({});
   const [slides, setSlides] = useState<Slide[]>(demoSlides.map(hydrateSlide));
   const [generationPrompt, setGenerationPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState("");
   const [hasGenerated, setHasGenerated] = useState(false);
   const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null);
   const textFileRef = useRef<HTMLInputElement | null>(null);
@@ -754,7 +756,7 @@ export default function Home() {
     void handleImageFiles(event.dataTransfer.files);
   };
 
-  const createPresentation = () => {
+  const createPresentation = async () => {
     const nextPrompt = buildPresentationPrompt({
       type: presentationType,
       style,
@@ -770,12 +772,56 @@ export default function Home() {
       images.length > 0,
     );
 
+    setIsGenerating(true);
+    setGenerationError("");
     setGenerationPrompt(nextPrompt);
-    setSlides(nextSlides);
-    setSlideThemes(
-      Object.fromEntries(nextSlides.map((_, index) => [index, deckTheme])),
-    );
-    setHasGenerated(true);
+
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: nextPrompt,
+          fallbackSlides: nextSlides,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("AI generation failed");
+      }
+
+      const data = (await response.json()) as {
+        slides?: Slide[];
+        warning?: string;
+      };
+      const generatedSlides =
+        data.slides && data.slides.length > 0
+          ? data.slides.map(hydrateSlide)
+          : nextSlides;
+
+      setSlides(generatedSlides);
+      setSlideThemes(
+        Object.fromEntries(generatedSlides.map((_, index) => [index, deckTheme])),
+      );
+      setHasGenerated(true);
+
+      if (data.warning) {
+        setGenerationError("AI вернул нестандартный ответ, использован локальный шаблон.");
+      }
+    } catch {
+      setSlides(nextSlides);
+      setSlideThemes(
+        Object.fromEntries(nextSlides.map((_, index) => [index, deckTheme])),
+      );
+      setHasGenerated(true);
+      setGenerationError(
+        "AI недоступен: проверьте OPENAI_API_KEY. Пока использован локальный шаблон.",
+      );
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const getSlideTheme = (index: number): SlideTheme =>
@@ -1659,12 +1705,18 @@ export default function Home() {
           </section>
 
           <button
-            className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-umbrella-accent px-4 font-bold text-white shadow-lg shadow-[#0050FF]/20 transition hover:bg-[#0042D6]"
-            onClick={createPresentation}
+            className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-umbrella-accent px-4 font-bold text-white shadow-lg shadow-[#0050FF]/20 transition hover:bg-[#0042D6] disabled:cursor-wait disabled:opacity-70"
+            disabled={isGenerating}
+            onClick={() => void createPresentation()}
           >
-            <Sparkles className="h-5 w-5" />
-            Создать презентацию
+            <Sparkles className={`h-5 w-5 ${isGenerating ? "animate-pulse" : ""}`} />
+            {isGenerating ? "Генерируем..." : "Создать презентацию"}
           </button>
+          {generationError && (
+            <p className="mt-3 text-xs leading-4 text-umbrella-muted">
+              {generationError}
+            </p>
+          )}
         </aside>
 
         <section className="flex min-w-0 flex-col rounded-lg border border-umbrella-line bg-white shadow-panel">
