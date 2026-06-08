@@ -605,7 +605,22 @@ const formatSize = (bytes: number) => {
 };
 
 const acceptedTextFormats = [".docx", ".txt", ".pdf"];
+const acceptedImageExtensions = [".png", ".jpg", ".jpeg", ".webp"];
 const acceptedImageFormats = ["image/png", "image/jpeg", "image/webp"];
+const sourceFileAccept = [...acceptedTextFormats, ...acceptedImageExtensions].join(",");
+
+const isTextMaterialFile = (file: File) => {
+  const lowerName = file.name.toLowerCase();
+  return acceptedTextFormats.some((format) => lowerName.endsWith(format));
+};
+
+const isImageFile = (file: File) => {
+  const lowerName = file.name.toLowerCase();
+  return (
+    acceptedImageFormats.includes(file.type) ||
+    acceptedImageExtensions.some((format) => lowerName.endsWith(format))
+  );
+};
 
 const inferImageMockup = (image: UploadedImage): MockupType => {
   const name = image.name.toLowerCase();
@@ -727,12 +742,13 @@ export default function Home() {
 
   const handleTextFile = (file?: File) => {
     if (!file) return;
-    const lowerName = file.name.toLowerCase();
-    const isAllowed = acceptedTextFormats.some((format) =>
-      lowerName.endsWith(format),
-    );
 
-    if (!isAllowed) return;
+    if (isImageFile(file)) {
+      void handleImageFiles([file]);
+      return;
+    }
+
+    if (!isTextMaterialFile(file)) return;
     setTextFile({ name: file.name, size: file.size, type: file.type });
   };
 
@@ -740,7 +756,7 @@ export default function Home() {
     if (!fileList) return;
 
     const incoming = Array.from(fileList)
-      .filter((file) => acceptedImageFormats.includes(file.type))
+      .filter(isImageFile)
       .slice(0, Math.max(0, 10 - images.length));
 
     const loaded = await Promise.all(
@@ -1566,7 +1582,7 @@ export default function Home() {
                   ref={textFileRef}
                   className="hidden"
                   type="file"
-                  accept=".docx,.txt,.pdf"
+                  accept={sourceFileAccept}
                   onChange={(event: ChangeEvent<HTMLInputElement>) =>
                     handleTextFile(event.target.files?.[0])
                   }
@@ -1584,7 +1600,7 @@ export default function Home() {
                     или выберите на компьютере
                   </p>
                   <p className="mt-2 text-xs text-umbrella-muted">
-                    Поддерживаются: .docx, .txt, .pdf
+                    Поддерживаются: .docx, .txt, .pdf, .png, .jpg, .webp
                   </p>
                   <button
                     className="mt-3 rounded-md border border-[#9DBBFF] bg-white px-4 py-2 text-sm font-semibold text-umbrella-accent transition hover:bg-umbrella-blueSoft"
