@@ -649,6 +649,23 @@ const loadImageDataUrl = async (src: string) => {
   });
 };
 
+const buildInitialSlideImages = (slides: Slide[], images: UploadedImage[]) => {
+  if (images.length === 0) return {};
+
+  let nextImageIndex = 0;
+
+  return Object.fromEntries(
+    slides
+      .map((slide, slideIndex) => {
+        if (slide.kind !== "image") return null;
+        const image = images[nextImageIndex] ?? images[0];
+        nextImageIndex += 1;
+        return [slideIndex, image.id] as const;
+      })
+      .filter(Boolean) as Array<readonly [number, string]>,
+  );
+};
+
 export default function Home() {
   const [textSource, setTextSource] = useState<TextSource>("file");
   const [manualText, setManualText] = useState("");
@@ -660,6 +677,7 @@ export default function Home() {
   const [slideCount, setSlideCount] = useState<SlideCount>("8–10");
   const [deckTheme, setDeckTheme] = useState<SlideTheme>("dark");
   const [slideThemes, setSlideThemes] = useState<Record<number, SlideTheme>>({});
+  const [slideImages, setSlideImages] = useState<Record<number, string>>({});
   const [autoMockups, setAutoMockups] = useState(true);
   const [isMockupPanelOpen, setIsMockupPanelOpen] = useState(false);
   const [imageMockups, setImageMockups] = useState<Record<string, MockupType>>({});
@@ -805,6 +823,7 @@ export default function Home() {
       setSlideThemes(
         Object.fromEntries(generatedSlides.map((_, index) => [index, deckTheme])),
       );
+      setSlideImages(buildInitialSlideImages(generatedSlides, images));
       setHasGenerated(true);
 
       if (data.warning) {
@@ -815,6 +834,7 @@ export default function Home() {
       setSlideThemes(
         Object.fromEntries(nextSlides.map((_, index) => [index, deckTheme])),
       );
+      setSlideImages(buildInitialSlideImages(nextSlides, images));
       setHasGenerated(true);
       setGenerationError(
         "AI недоступен: проверьте OPENAI_API_KEY. Пока использован локальный шаблон.",
@@ -838,12 +858,32 @@ export default function Home() {
   const getImageMockup = (image: UploadedImage): MockupType =>
     autoMockups ? inferImageMockup(image) : imageMockups[image.id] ?? inferImageMockup(image);
 
+  const getImageById = (imageId?: string) =>
+    images.find((image) => image.id === imageId);
+
+  const getSlideImage = (index: number) => {
+    const assignedImage = getImageById(slideImages[index]);
+    if (assignedImage) return assignedImage;
+
+    return currentSlides[index]?.kind === "image" ? images[0] : undefined;
+  };
+
+  const getSlideImageMockup = (index: number) => {
+    const image = getSlideImage(index);
+    return image ? getImageMockup(image) : undefined;
+  };
+
   const updateImageMockup = (imageId: string, mockup: MockupType) => {
     setImageMockups((current) => ({ ...current, [imageId]: mockup }));
   };
 
   const removeImage = (imageId: string) => {
     setImages((current) => current.filter((item) => item.id !== imageId));
+    setSlideImages((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([, assignedImageId]) => assignedImageId !== imageId),
+      ),
+    );
     setImageMockups((current) => {
       const next = { ...current };
       delete next[imageId];
@@ -873,6 +913,16 @@ export default function Home() {
     const currentSlide = currentSlides[index];
     if (!currentSlide) return;
     replaceSlideAt(index, regenerateSlideContent(currentSlide, index + Date.now()));
+  };
+
+  const assignImageToSlide = (index: number, imageId: string) => {
+    const currentSlide = currentSlides[index];
+    if (!currentSlide || !getImageById(imageId)) return;
+
+    setSlideImages((current) => ({ ...current, [index]: imageId }));
+    if (currentSlide.kind !== "image") {
+      replaceSlideAt(index, { ...currentSlide, kind: "image" });
+    }
   };
 
   const downloadPptx = async () => {
@@ -1357,7 +1407,9 @@ export default function Home() {
         return;
       }
 
-      if (slide.kind === "image" && images[0]) {
+      const assignedImage = getSlideImage(index);
+
+      if (slide.kind === "image" && assignedImage) {
         page.addText("02", {
           x: 0.7,
           y: 1.75,
@@ -1379,7 +1431,7 @@ export default function Home() {
           margin: 0,
         });
         page.addImage({
-          data: images[0].dataUrl,
+          data: assignedImage.dataUrl,
           x: 6.8,
           y: 1.05,
           w: 4.9,
@@ -1748,11 +1800,12 @@ export default function Home() {
                     key={`${slide.title}-${index}`}
                     slide={slide}
                     index={index}
-                    images={images}
-                    imageMockup={images[0] ? getImageMockup(images[0]) : undefined}
+                    assignedImage={getSlideImage(index)}
+                    imageMockup={getSlideImageMockup(index)}
                     slides={currentSlides}
                     theme={getSlideTheme(index)}
                     onThemeToggle={() => toggleSlideTheme(index)}
+                    onImageDrop={(imageId) => assignImageToSlide(index, imageId)}
                     onOpen={() => setEditingSlideIndex(index)}
                     onRegenerate={() => regenerateSlide(index)}
                   />
@@ -1790,8 +1843,8 @@ export default function Home() {
           slide={currentSlides[editingSlideIndex]}
           index={editingSlideIndex}
           theme={getSlideTheme(editingSlideIndex)}
-          images={images}
-          imageMockup={images[0] ? getImageMockup(images[0]) : undefined}
+          image={getSlideImage(editingSlideIndex)}
+          imageMockup={getSlideImageMockup(editingSlideIndex)}
           onClose={() => setEditingSlideIndex(null)}
           onChange={(patch) => updateSlideText(editingSlideIndex, patch)}
           onThemeChange={(theme) => updateSlideTheme(editingSlideIndex, theme)}
@@ -1929,7 +1982,15 @@ function ImageMockupCard({
   const Icon = option.icon;
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-umbrella-line bg-[#F2F3F8] p-2">
+    <div
+      className="relative cursor-grab overflow-hidden rounded-lg border border-umbrella-line bg-[#F2F3F8] p-2 transition hover:border-[#9DBBFF] active:cursor-grabbing"
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData("application/x-umbrella-image-id", image.id);
+        event.dataTransfer.effectAllowed = "copy";
+      }}
+      title="Перетащите на слайд"
+    >
       <div className="grid h-24 place-items-center rounded-md bg-white">
         <MockupFrame image={image} mockup={mockup} compact />
       </div>
@@ -1942,6 +2003,9 @@ function ImageMockupCard({
           {option.label}
         </span>
       </div>
+      <p className="mt-1 text-[11px] font-medium text-umbrella-muted">
+        Перетащите на слайд
+      </p>
       <button
         className="absolute right-2 top-2 rounded-full bg-white p-1 text-umbrella-muted shadow transition hover:text-umbrella-ink"
         aria-label="Удалить изображение"
@@ -1957,29 +2021,62 @@ function ImageMockupCard({
 function SlideCard({
   slide,
   index,
-  images,
+  assignedImage,
   imageMockup,
   slides,
   theme,
   onThemeToggle,
+  onImageDrop,
   onOpen,
   onRegenerate,
 }: {
   slide: Slide;
   index: number;
-  images: UploadedImage[];
+  assignedImage?: UploadedImage;
   imageMockup?: MockupType;
   slides: Slide[];
   theme: SlideTheme;
   onThemeToggle: () => void;
+  onImageDrop: (imageId: string) => void;
   onOpen: () => void;
   onRegenerate: () => void;
 }) {
   const isLight = theme === "light";
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragOver(false);
+
+    const imageId = event.dataTransfer.getData("application/x-umbrella-image-id");
+    if (imageId) {
+      onImageDrop(imageId);
+    }
+  };
 
   return (
     <article>
-      <div className="relative">
+      <div
+        className="relative"
+        onDragEnter={(event) => {
+          if (event.dataTransfer.types.includes("application/x-umbrella-image-id")) {
+            setIsDragOver(true);
+          }
+        }}
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes("application/x-umbrella-image-id")) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+            setIsDragOver(true);
+          }
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setIsDragOver(false);
+          }
+        }}
+        onDrop={handleDrop}
+      >
         <button
           className="slide-aspect block w-full overflow-hidden rounded-md border border-umbrella-line bg-white text-left shadow-card transition hover:border-[#9DBBFF] hover:shadow-panel"
           type="button"
@@ -1988,12 +2085,19 @@ function SlideCard({
         >
           <SlidePreview
             slide={slide}
-            images={images}
+            image={assignedImage}
             imageMockup={imageMockup}
             slides={slides}
             theme={theme}
           />
         </button>
+        {isDragOver && (
+          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-md border-2 border-dashed border-umbrella-accent bg-[#0050FF]/15 p-4 text-center">
+            <span className="rounded-full bg-white px-4 py-2 text-sm font-bold text-umbrella-accent shadow-lg">
+              Отпустите, чтобы заменить изображение
+            </span>
+          </div>
+        )}
         <button
           className={`absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full border shadow-lg transition duration-300 hover:scale-105 ${
             isLight
@@ -2013,9 +2117,16 @@ function SlideCard({
         </button>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
-        <p className="min-w-0 flex-1 truncate text-sm font-semibold text-umbrella-muted">
-          {index + 1}. {slide.title}
-        </p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-umbrella-muted">
+            {index + 1}. {slide.title}
+          </p>
+          {assignedImage && (
+            <p className="mt-0.5 truncate text-xs font-semibold text-umbrella-accent">
+              {assignedImage.name}
+            </p>
+          )}
+        </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
             className="grid h-8 w-8 place-items-center rounded-md border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
@@ -2045,7 +2156,7 @@ function SlideEditorModal({
   slide,
   index,
   theme,
-  images,
+  image,
   imageMockup,
   onClose,
   onChange,
@@ -2055,7 +2166,7 @@ function SlideEditorModal({
   slide: Slide;
   index: number;
   theme: SlideTheme;
-  images: UploadedImage[];
+  image?: UploadedImage;
   imageMockup?: MockupType;
   onClose: () => void;
   onChange: (patch: Partial<Pick<Slide, "title" | "body" | "bullets">>) => void;
@@ -2090,7 +2201,7 @@ function SlideEditorModal({
           <div className="slide-aspect overflow-hidden rounded-lg border border-white/10 bg-white">
             <SlidePreview
               slide={slide}
-              images={images}
+              image={image}
               imageMockup={imageMockup}
               slides={[slide]}
               theme={theme}
@@ -2227,13 +2338,13 @@ function MockupFrame({
 
 function SlidePreview({
   slide,
-  images,
+  image,
   imageMockup,
   slides,
   theme,
 }: {
   slide: Slide;
-  images: UploadedImage[];
+  image?: UploadedImage;
   imageMockup?: MockupType;
   slides: Slide[];
   theme: SlideTheme;
@@ -2371,11 +2482,11 @@ function SlidePreview({
           )}
         </div>
       </div>
-      {slide.kind === "image" && images[0] ? (
+      {slide.kind === "image" && image ? (
         <div className="relative z-10 flex h-full w-36 items-center justify-center">
           <MockupFrame
-            image={images[0]}
-            mockup={imageMockup ?? inferImageMockup(images[0])}
+            image={image}
+            mockup={imageMockup ?? inferImageMockup(image)}
           />
         </div>
       ) : (
