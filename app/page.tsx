@@ -2,13 +2,16 @@
 
 import {
   Ban,
+  BarChart3,
   ChevronDown,
   CircleHelp,
+  Clipboard,
   Download,
   FileText,
   History,
   Image as ImageIcon,
   Laptop,
+  Library,
   Maximize2,
   Monitor,
   Moon,
@@ -18,6 +21,7 @@ import {
   Sparkles,
   Smartphone,
   Sun,
+  Trash2,
   Undo2,
   X,
 } from "lucide-react";
@@ -55,6 +59,17 @@ type UploadedImage = UploadedFile & {
   id: string;
   dataUrl: string;
 };
+
+type ChartType =
+  | "ai"
+  | "bar"
+  | "line"
+  | "pie"
+  | "donut"
+  | "area"
+  | "funnel"
+  | "timeline"
+  | "radar";
 
 type Slide = {
   title: string;
@@ -116,6 +131,26 @@ const mockupOptions: Array<{
   { label: "iPhone", value: "iphone", icon: Smartphone },
   { label: "Browser", value: "browser", icon: Monitor },
   { label: "Macbook", value: "macbook", icon: Laptop },
+];
+
+const standardImages: UploadedImage[] = Array.from({ length: 14 }, (_, index) => ({
+  id: `standard-${index + 1}`,
+  name: `Иллюстрация ${index + 1}`,
+  size: 0,
+  type: "image/png",
+  dataUrl: `/standard-images/standard-${String(index + 1).padStart(2, "0")}.png`,
+}));
+
+const chartTypeOptions: Array<{ label: string; value: ChartType }> = [
+  { label: "Выбор AI", value: "ai" },
+  { label: "Столбцы", value: "bar" },
+  { label: "Линия", value: "line" },
+  { label: "Круговая", value: "pie" },
+  { label: "Кольцевая", value: "donut" },
+  { label: "Область", value: "area" },
+  { label: "Воронка", value: "funnel" },
+  { label: "Таймлайн", value: "timeline" },
+  { label: "Радар", value: "radar" },
 ];
 
 const demoSlides: Slide[] = [
@@ -698,6 +733,78 @@ const loadImageDataUrl = async (src: string) => {
   });
 };
 
+const svgToDataUrl = (svg: string) =>
+  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+
+const pickChartType = (description: string, selectedType: ChartType): Exclude<ChartType, "ai"> => {
+  if (selectedType !== "ai") return selectedType;
+
+  const text = description.toLowerCase();
+  if (/этап|план|timeline|roadmap|срок|квартал/.test(text)) return "timeline";
+  if (/ворон|funnel|конвер/.test(text)) return "funnel";
+  if (/доля|процент|share|част/.test(text)) return "donut";
+  if (/динами|рост|trend|месяц|год/.test(text)) return "line";
+  if (/сравн|compare|категор/.test(text)) return "bar";
+  return "bar";
+};
+
+const createChartImage = (description: string, selectedType: ChartType): UploadedImage => {
+  const chartType = pickChartType(description, selectedType);
+  const safeTitle =
+    description.trim().split(/\n|\.|;/)[0]?.slice(0, 64) || "Диаграмма";
+  const title = safeTitle.replace(/[<&>]/g, "");
+  const chartShapes: Record<Exclude<ChartType, "ai">, string> = {
+    bar: `
+      <rect x="86" y="220" width="48" height="120" rx="8" fill="#0050FF"/>
+      <rect x="158" y="172" width="48" height="168" rx="8" fill="#88A8FF"/>
+      <rect x="230" y="118" width="48" height="222" rx="8" fill="#0050FF"/>
+      <rect x="302" y="202" width="48" height="138" rx="8" fill="#C7D7FF"/>
+      <path d="M70 340H382" stroke="#D8E2F7" stroke-width="4"/>`,
+    line: `
+      <path d="M78 302C130 248 156 270 204 206C246 150 288 174 358 104" fill="none" stroke="#0050FF" stroke-width="12" stroke-linecap="round"/>
+      <path d="M78 342H382" stroke="#D8E2F7" stroke-width="4"/>
+      <circle cx="204" cy="206" r="12" fill="#88A8FF"/><circle cx="358" cy="104" r="12" fill="#0050FF"/>`,
+    pie: `
+      <path d="M240 112A112 112 0 1 1 146 285L240 224Z" fill="#0050FF"/>
+      <path d="M240 112A112 112 0 0 1 352 224H240Z" fill="#88A8FF"/>
+      <path d="M352 224A112 112 0 0 1 146 285L240 224Z" fill="#C7D7FF"/>`,
+    donut: `
+      <circle cx="240" cy="226" r="112" fill="none" stroke="#0050FF" stroke-width="42" stroke-dasharray="430 704" transform="rotate(-90 240 226)"/>
+      <circle cx="240" cy="226" r="112" fill="none" stroke="#88A8FF" stroke-width="42" stroke-dasharray="170 704" stroke-dashoffset="-430" transform="rotate(-90 240 226)"/>
+      <circle cx="240" cy="226" r="112" fill="none" stroke="#D8E2F7" stroke-width="42" stroke-dasharray="104 704" stroke-dashoffset="-600" transform="rotate(-90 240 226)"/>`,
+    area: `
+      <path d="M70 322C126 238 168 270 220 186C274 98 318 158 390 86V342H70Z" fill="#0050FF" opacity=".28"/>
+      <path d="M70 322C126 238 168 270 220 186C274 98 318 158 390 86" fill="none" stroke="#0050FF" stroke-width="10" stroke-linecap="round"/>`,
+    funnel: `
+      <path d="M90 110H390L342 176H138Z" fill="#0050FF"/>
+      <path d="M142 200H338L302 264H178Z" fill="#88A8FF"/>
+      <path d="M184 288H296L268 348H212Z" fill="#C7D7FF"/>`,
+    timeline: `
+      <path d="M74 226H400" stroke="#0050FF" stroke-width="10" stroke-linecap="round"/>
+      <circle cx="102" cy="226" r="24" fill="#0050FF"/><circle cx="224" cy="226" r="24" fill="#88A8FF"/><circle cx="346" cy="226" r="24" fill="#0050FF"/>
+      <rect x="78" y="276" width="78" height="34" rx="8" fill="#D8E2F7"/><rect x="198" y="154" width="78" height="34" rx="8" fill="#D8E2F7"/><rect x="320" y="276" width="78" height="34" rx="8" fill="#D8E2F7"/>`,
+    radar: `
+      <path d="M240 100L354 184L310 326H170L126 184Z" fill="none" stroke="#D8E2F7" stroke-width="6"/>
+      <path d="M240 132L320 196L292 292H184L152 198Z" fill="#0050FF" opacity=".35" stroke="#0050FF" stroke-width="8"/>`,
+  };
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360">
+      <rect width="480" height="360" rx="28" fill="#F7F9FF"/>
+      <rect x="32" y="32" width="416" height="296" rx="22" fill="#FFFFFF"/>
+      <rect x="56" y="58" width="68" height="8" rx="4" fill="#0050FF"/>
+      <text x="56" y="94" font-family="Inter, Arial" font-size="22" font-weight="800" fill="#282A32">${title}</text>
+      ${chartShapes[chartType]}
+    </svg>`;
+
+  return {
+    id: `chart-${crypto.randomUUID()}`,
+    name: title,
+    size: svg.length,
+    type: "image/svg+xml",
+    dataUrl: svgToDataUrl(svg),
+  };
+};
+
 const buildInitialSlideImages = (slides: Slide[], images: UploadedImage[]) => {
   if (images.length === 0) return {};
 
@@ -720,6 +827,11 @@ export default function Home() {
   const [manualText, setManualText] = useState("");
   const [textFile, setTextFile] = useState<UploadedFile | null>(null);
   const [images, setImages] = useState<UploadedImage[]>([]);
+  const [chartImages, setChartImages] = useState<UploadedImage[]>([]);
+  const [isStandardLibraryOpen, setIsStandardLibraryOpen] = useState(false);
+  const [isChartLibraryOpen, setIsChartLibraryOpen] = useState(false);
+  const [chartDescription, setChartDescription] = useState("");
+  const [chartType, setChartType] = useState<ChartType>("ai");
   const [presentationType, setPresentationType] =
     useState<PresentationType>("Демо проекта");
   const [style, setStyle] = useState<PresentationStyle>("Umbrella корпоративный");
@@ -739,17 +851,19 @@ export default function Home() {
   const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null);
   const textFileRef = useRef<HTMLInputElement | null>(null);
   const imageFileRef = useRef<HTMLInputElement | null>(null);
+  const chartFileRef = useRef<HTMLInputElement | null>(null);
+  const chartImageRef = useRef<HTMLInputElement | null>(null);
+
+  const libraryImages = useMemo(
+    () => [...images, ...chartImages, ...standardImages],
+    [chartImages, images],
+  );
 
   const materializeSlides = (baseSlides: Slide[]) => {
-    if (images.length === 0) {
-      return baseSlides.map((slide) =>
-        slide.kind === "image"
-          ? hydrateSlide({ ...slide, kind: "content" as const })
-          : hydrateSlide(slide),
-      );
-    }
-
-    if (!baseSlides.some((slide) => slide.kind === "image")) {
+    if (
+      images.length + chartImages.length > 0 &&
+      !baseSlides.some((slide) => slide.kind === "image")
+    ) {
       const finalSlideIndex = baseSlides.findIndex((slide) => slide.kind === "final");
       const imageSlide: Slide = {
         title: "Скриншот решения",
@@ -772,7 +886,7 @@ export default function Home() {
 
   const currentSlides = useMemo(
     () => materializeSlides(slides),
-    [images.length, slides],
+    [chartImages.length, images.length, slides],
   );
 
   const saveUndoSnapshot = () => {
@@ -848,6 +962,43 @@ export default function Home() {
     setImages((current) => [...current, ...loaded].slice(0, 10));
   };
 
+  const loadImagesFromFiles = async (fileList?: FileList | File[]) => {
+    if (!fileList) return [];
+
+    const incoming = Array.from(fileList).filter(isImageFile);
+    return Promise.all(
+      incoming.map(
+        (file) =>
+          new Promise<UploadedImage>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () =>
+              resolve({
+                id: `${file.name}-${file.size}-${crypto.randomUUID()}`,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                dataUrl: String(reader.result),
+              });
+            reader.readAsDataURL(file);
+          }),
+      ),
+    );
+  };
+
+  const handleChartImageFiles = async (fileList?: FileList | File[]) => {
+    const loaded = await loadImagesFromFiles(fileList);
+    if (loaded.length > 0) {
+      setChartImages((current) => [...loaded, ...current].slice(0, 24));
+    }
+  };
+
+  const handleChartTableFile = (file?: File) => {
+    if (!file) return;
+    setChartDescription((current) =>
+      `${current.trim() ? `${current.trim()}\n` : ""}Источник данных: ${file.name}`,
+    );
+  };
+
   const onDropText = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     handleTextFile(event.dataTransfer.files[0]);
@@ -856,6 +1007,12 @@ export default function Home() {
   const onDropImages = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     void handleImageFiles(event.dataTransfer.files);
+  };
+
+  const generateChart = () => {
+    const nextChart = createChartImage(chartDescription, chartType);
+    setChartImages((current) => [nextChart, ...current].slice(0, 24));
+    setChartDescription("");
   };
 
   const createPresentation = async () => {
@@ -947,13 +1104,15 @@ export default function Home() {
     imageMockups[image.id] ?? "none";
 
   const getImageById = (imageId?: string) =>
-    images.find((image) => image.id === imageId);
+    libraryImages.find((image) => image.id === imageId);
 
   const getSlideImage = (index: number) => {
     const assignedImage = getImageById(slideImages[index]);
     if (assignedImage) return assignedImage;
 
-    return currentSlides[index]?.kind === "image" ? images[0] : undefined;
+    return currentSlides[index]?.kind === "image"
+      ? images[0] ?? chartImages[0]
+      : undefined;
   };
 
   const getSlideImageMockup = (index: number) => {
@@ -967,6 +1126,7 @@ export default function Home() {
 
   const removeImage = (imageId: string) => {
     setImages((current) => current.filter((item) => item.id !== imageId));
+    setChartImages((current) => current.filter((item) => item.id !== imageId));
     setSlideImages((current) =>
       Object.fromEntries(
         Object.entries(current).filter(([, assignedImageId]) => assignedImageId !== imageId),
@@ -1009,6 +1169,51 @@ export default function Home() {
     replaceSlideAt(index, regenerateSlideContent(currentSlide, index + Date.now()));
   };
 
+  const addSlideAfter = (index: number) => {
+    saveUndoSnapshot();
+    const newSlide: Slide = hydrateSlide({
+      title: "Новый слайд",
+      kind: "content",
+      bullets: ["Ключевая мысль", "Подтверждение", "Следующий шаг"],
+    });
+    setSlides((current) => {
+      const materialized = materializeSlides(current);
+      return [
+        ...materialized.slice(0, index + 1),
+        newSlide,
+        ...materialized.slice(index + 1),
+      ];
+    });
+    setHasGenerated(true);
+  };
+
+  const deleteSlideAt = (index: number) => {
+    if (currentSlides.length <= 1) return;
+    const currentSlide = currentSlides[index];
+    saveUndoSnapshot();
+    if (currentSlide) rememberSlideVersion(index, currentSlide);
+    setSlides((current) => {
+      const materialized = materializeSlides(current);
+      return materialized.filter((_, slideIndex) => slideIndex !== index);
+    });
+    setSlideImages((current) =>
+      Object.fromEntries(
+        Object.entries(current)
+          .map(([key, value]) => [Number(key), value] as const)
+          .filter(([key]) => key !== index)
+          .map(([key, value]) => [key > index ? key - 1 : key, value]),
+      ),
+    );
+    setSlideLayouts((current) =>
+      Object.fromEntries(
+        Object.entries(current)
+          .map(([key, value]) => [Number(key), value] as const)
+          .filter(([key]) => key !== index)
+          .map(([key, value]) => [key > index ? key - 1 : key, value]),
+      ),
+    );
+  };
+
   const assignImageToSlide = (index: number, imageId: string) => {
     const currentSlide = currentSlides[index];
     if (!currentSlide || !getImageById(imageId)) return;
@@ -1017,6 +1222,42 @@ export default function Home() {
     setSlideImages((current) => ({ ...current, [index]: imageId }));
     if (currentSlide.kind !== "image") {
       replaceSlideAt(index, { ...currentSlide, kind: "image" });
+    }
+  };
+
+  const pasteImageToSlide = async (index: number) => {
+    if (!navigator.clipboard?.read) return;
+
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      for (const item of clipboardItems) {
+        const imageType = item.types.find((type) => type.startsWith("image/"));
+        if (!imageType) continue;
+
+        const blob = await item.getType(imageType);
+        const image = await new Promise<UploadedImage>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () =>
+            resolve({
+              id: `clipboard-${crypto.randomUUID()}`,
+              name: "Из буфера обмена",
+              size: blob.size,
+              type: imageType,
+              dataUrl: String(reader.result),
+            });
+          reader.readAsDataURL(blob);
+        });
+        setImages((current) => [image, ...current].slice(0, 10));
+        saveUndoSnapshot();
+        setSlideImages((current) => ({ ...current, [index]: image.id }));
+        const currentSlide = currentSlides[index];
+        if (currentSlide && currentSlide.kind !== "image") {
+          replaceSlideAt(index, { ...currentSlide, kind: "image" });
+        }
+        return;
+      }
+    } catch {
+      setGenerationError("Не удалось прочитать буфер обмена. Разрешите доступ браузеру.");
     }
   };
 
@@ -1780,6 +2021,121 @@ export default function Home() {
             )}
           </section>
 
+          <section className="mt-5">
+            <button
+              className="flex w-full items-center justify-between rounded-lg border border-umbrella-line bg-white px-4 py-3 text-left text-sm font-bold transition hover:bg-[#F7F7FB]"
+              type="button"
+              onClick={() => setIsStandardLibraryOpen((current) => !current)}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Library className="h-4 w-4 text-umbrella-accent" />
+                Библиотека изображений
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 text-umbrella-muted transition ${
+                  isStandardLibraryOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+            {isStandardLibraryOpen && (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {standardImages.map((image) => (
+                  <LibraryImageCard key={image.id} image={image} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="mt-5">
+            <button
+              className="flex w-full items-center justify-between rounded-lg border border-umbrella-line bg-white px-4 py-3 text-left text-sm font-bold transition hover:bg-[#F7F7FB]"
+              type="button"
+              onClick={() => setIsChartLibraryOpen((current) => !current)}
+            >
+              <span className="inline-flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-umbrella-accent" />
+                Диаграммы
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 text-umbrella-muted transition ${
+                  isChartLibraryOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+            {isChartLibraryOpen && (
+              <div className="mt-3 rounded-lg border border-umbrella-line bg-[#FBFBFE] p-3">
+                <textarea
+                  className="min-h-[92px] w-full resize-none rounded-lg border border-umbrella-line bg-white px-3 py-2 text-sm leading-5 outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
+                  placeholder="Опишите, какую диаграмму нужно получить"
+                  value={chartDescription}
+                  onChange={(event) => setChartDescription(event.target.value)}
+                />
+                <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+                  <select
+                    className="h-10 rounded-lg border border-umbrella-line bg-white px-3 text-sm font-semibold outline-none"
+                    value={chartType}
+                    onChange={(event) => setChartType(event.target.value as ChartType)}
+                  >
+                    {chartTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="rounded-lg bg-umbrella-accent px-4 text-sm font-bold text-white transition hover:bg-[#0042D6]"
+                    type="button"
+                    onClick={generateChart}
+                  >
+                    Создать
+                  </button>
+                </div>
+                <input
+                  ref={chartFileRef}
+                  className="hidden"
+                  type="file"
+                  accept=".csv,.tsv,.xlsx,.xls"
+                  onChange={(event) => handleChartTableFile(event.target.files?.[0])}
+                />
+                <input
+                  ref={chartImageRef}
+                  className="hidden"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  multiple
+                  onChange={(event) => void handleChartImageFiles(event.target.files ?? undefined)}
+                />
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    className="rounded-md border border-umbrella-line bg-white px-3 py-2 text-xs font-bold transition hover:bg-umbrella-soft"
+                    type="button"
+                    onClick={() => chartFileRef.current?.click()}
+                  >
+                    Загрузить таблицу
+                  </button>
+                  <button
+                    className="rounded-md border border-umbrella-line bg-white px-3 py-2 text-xs font-bold transition hover:bg-umbrella-soft"
+                    type="button"
+                    onClick={() => chartImageRef.current?.click()}
+                  >
+                    Вставить картинку
+                  </button>
+                </div>
+                {chartImages.length > 0 && (
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    {chartImages.map((image) => (
+                      <LibraryImageCard
+                        key={image.id}
+                        image={image}
+                        onRemove={() => removeImage(image.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
           <section className="mt-5 space-y-4">
             <SelectField
               label="Тип презентации"
@@ -1870,6 +2226,8 @@ export default function Home() {
                     onThemeToggle={() => toggleSlideTheme(index)}
                     onImageDrop={(imageId) => assignImageToSlide(index, imageId)}
                     onOpen={() => setEditingSlideIndex(index)}
+                    onAdd={() => addSlideAfter(index)}
+                    onDelete={() => deleteSlideAt(index)}
                     onRegenerate={() => regenerateSlide(index)}
                   />
                 ))}
@@ -1916,6 +2274,12 @@ export default function Home() {
           onLayoutChange={(patch) => updateSlideLayout(editingSlideIndex, patch)}
           onLayoutChangeStart={commitSlideLayoutChange}
           onRestoreVersion={(version) => restoreSlideVersion(editingSlideIndex, version)}
+          onPasteImage={() => void pasteImageToSlide(editingSlideIndex)}
+          onAddSlide={() => addSlideAfter(editingSlideIndex)}
+          onDeleteSlide={() => {
+            deleteSlideAt(editingSlideIndex);
+            setEditingSlideIndex(null);
+          }}
           onRegenerate={() => regenerateSlide(editingSlideIndex)}
         />
       )}
@@ -2072,6 +2436,50 @@ function RangeControl({
   );
 }
 
+function LibraryImageCard({
+  image,
+  onRemove,
+}: {
+  image: UploadedImage;
+  onRemove?: () => void;
+}) {
+  return (
+    <div
+      className="relative cursor-grab overflow-hidden rounded-lg border border-umbrella-line bg-[#F2F3F8] p-2 transition hover:border-[#9DBBFF] active:cursor-grabbing"
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData("application/x-umbrella-image-id", image.id);
+        event.dataTransfer.effectAllowed = "copy";
+      }}
+      title="Перетащите на слайд"
+    >
+      <div className="grid h-24 place-items-center rounded-md bg-white">
+        <img
+          src={image.dataUrl}
+          alt={image.name}
+          className="max-h-20 max-w-full object-contain"
+        />
+      </div>
+      <p className="mt-2 truncate text-xs font-semibold text-umbrella-muted">
+        {image.name}
+      </p>
+      <p className="mt-1 text-[11px] font-medium text-umbrella-muted">
+        Перетащите на слайд
+      </p>
+      {onRemove && (
+        <button
+          className="absolute right-2 top-2 rounded-full bg-white p-1 text-umbrella-muted shadow transition hover:text-umbrella-ink"
+          aria-label="Удалить"
+          onClick={onRemove}
+          type="button"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ImageMockupCard({
   image,
   mockup,
@@ -2149,6 +2557,8 @@ function SlideCard({
   onThemeToggle,
   onImageDrop,
   onOpen,
+  onAdd,
+  onDelete,
   onRegenerate,
 }: {
   slide: Slide;
@@ -2161,6 +2571,8 @@ function SlideCard({
   onThemeToggle: () => void;
   onImageDrop: (imageId: string) => void;
   onOpen: () => void;
+  onAdd: () => void;
+  onDelete: () => void;
   onRegenerate: () => void;
 }) {
   const isLight = theme === "light";
@@ -2263,11 +2675,29 @@ function SlideCard({
           <button
             className="grid h-8 w-8 place-items-center rounded-md border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
             type="button"
+            aria-label="Добавить слайд"
+            onClick={onAdd}
+            title="Добавить слайд"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <button
+            className="grid h-8 w-8 place-items-center rounded-md border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
+            type="button"
             aria-label="Перегенерировать слайд"
             onClick={onRegenerate}
             title="Перегенерировать"
           >
             <RotateCcw className="h-4 w-4" />
+          </button>
+          <button
+            className="grid h-8 w-8 place-items-center rounded-md border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-[#FFF1F1] hover:text-[#D23B3B]"
+            type="button"
+            aria-label="Удалить слайд"
+            onClick={onDelete}
+            title="Удалить слайд"
+          >
+            <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -2289,6 +2719,9 @@ function SlideEditorModal({
   onLayoutChange,
   onLayoutChangeStart,
   onRestoreVersion,
+  onPasteImage,
+  onAddSlide,
+  onDeleteSlide,
   onRegenerate,
 }: {
   slide: Slide;
@@ -2304,6 +2737,9 @@ function SlideEditorModal({
   onLayoutChange: (patch: Partial<SlideLayout>) => void;
   onLayoutChangeStart: () => void;
   onRestoreVersion: (version: Slide) => void;
+  onPasteImage: () => void;
+  onAddSlide: () => void;
+  onDeleteSlide: () => void;
   onRegenerate: () => void;
 }) {
   const bullets = slide.bullets ?? defaultBulletsByKind[slide.kind];
@@ -2346,14 +2782,44 @@ function SlideEditorModal({
         <div className="overflow-y-auto p-6">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-display text-xl font-bold">Редактировать текст</h3>
-            <button
-              className="inline-flex items-center gap-2 rounded-lg border border-umbrella-line bg-white px-3 py-2 text-sm font-semibold text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
-              type="button"
-              onClick={onRegenerate}
-            >
-              <RotateCcw className="h-4 w-4" />
-              Перегенерировать
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
+                type="button"
+                onClick={onPasteImage}
+                title="Вставить картинку из буфера"
+                aria-label="Вставить картинку из буфера"
+              >
+                <Clipboard className="h-4 w-4" />
+              </button>
+              <button
+                className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
+                type="button"
+                onClick={onAddSlide}
+                title="Добавить слайд"
+                aria-label="Добавить слайд"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <button
+                className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
+                type="button"
+                onClick={onRegenerate}
+                title="Перегенерировать"
+                aria-label="Перегенерировать"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+              <button
+                className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-[#FFF1F1] hover:text-[#D23B3B]"
+                type="button"
+                onClick={onDeleteSlide}
+                title="Удалить слайд"
+                aria-label="Удалить слайд"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <div className="mt-5">
