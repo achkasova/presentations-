@@ -15,6 +15,7 @@ import {
   Maximize2,
   Monitor,
   Moon,
+  Palette,
   Pencil,
   Plus,
   RotateCcw,
@@ -26,7 +27,15 @@ import {
   X,
 } from "lucide-react";
 import PptxGenJS from "pptxgenjs";
-import { ChangeEvent, DragEvent, ReactNode, useMemo, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  DragEvent,
+  PointerEvent as ReactPointerEvent,
+  ReactNode,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 type PresentationType =
   | "Демо проекта"
@@ -44,8 +53,9 @@ type PresentationStyle =
 
 type SlideCount = "5–7" | "8–10" | "11–15";
 type SlideTheme = "dark" | "light";
-type MockupType = "iphone" | "browser" | "macbook";
-type MockupChoice = MockupType | "none";
+type MockupType = "iphone" | "android" | "browser" | "macbook" | "desktop";
+type MockupChoice = MockupType | "none" | "auto";
+type SlideLayoutPreset = "hero" | "split" | "kpi" | "feature" | "timeline" | "deviceWall";
 
 type TextSource = "text" | "file";
 
@@ -79,6 +89,7 @@ type Slide = {
 };
 
 type SlideLayout = {
+  preset: SlideLayoutPreset;
   imageX: number;
   imageY: number;
   imageScale: number;
@@ -127,10 +138,27 @@ const mockupOptions: Array<{
   value: MockupChoice;
   icon: typeof Smartphone;
 }> = [
+  { label: "Авто", value: "auto", icon: Sparkles },
   { label: "Без мокапа", value: "none", icon: Ban },
-  { label: "iPhone", value: "iphone", icon: Smartphone },
   { label: "Browser", value: "browser", icon: Monitor },
   { label: "Macbook", value: "macbook", icon: Laptop },
+  { label: "iPhone", value: "iphone", icon: Smartphone },
+  { label: "Android", value: "android", icon: Smartphone },
+  { label: "Desktop", value: "desktop", icon: Monitor },
+];
+
+const slideLayoutPresets: Array<{
+  label: string;
+  value: SlideLayoutPreset;
+  description: string;
+  layout: Partial<SlideLayout>;
+}> = [
+  { label: "Hero", value: "hero", description: "Крупный заголовок и акцент", layout: { preset: "hero", textX: 0, textY: 0, imageX: 12, imageY: 0, imageScale: 130 } },
+  { label: "Split", value: "split", description: "Текст слева, визуал справа", layout: { preset: "split", textX: 0, textY: 0, imageX: 0, imageY: 0, imageScale: 100 } },
+  { label: "KPI", value: "kpi", description: "Метрики и короткие выводы", layout: { preset: "kpi", textX: 0, textY: -6, imageX: 10, imageY: 8, imageScale: 92 } },
+  { label: "Feature", value: "feature", description: "Фича и преимущества", layout: { preset: "feature", textX: 0, textY: 8, imageX: -8, imageY: -4, imageScale: 115 } },
+  { label: "Timeline", value: "timeline", description: "Этапы и последовательность", layout: { preset: "timeline", textX: 0, textY: -12, imageX: 0, imageY: 20, imageScale: 90 } },
+  { label: "Device Wall", value: "deviceWall", description: "Несколько экранов продукта", layout: { preset: "deviceWall", textX: -4, textY: 0, imageX: 0, imageY: 0, imageScale: 145 } },
 ];
 
 const standardImages: UploadedImage[] = Array.from({ length: 14 }, (_, index) => ({
@@ -680,6 +708,10 @@ const isImageFile = (file: File) => {
 const inferImageMockup = (image: UploadedImage): MockupType => {
   const name = image.name.toLowerCase();
 
+  if (/android/.test(name)) {
+    return "android";
+  }
+
   if (/iphone|phone|mobile|screen|screenshot|моб|телефон/.test(name)) {
     return "iphone";
   }
@@ -696,6 +728,7 @@ const inferImageMockup = (image: UploadedImage): MockupType => {
 };
 
 const defaultSlideLayout: SlideLayout = {
+  preset: "split",
   imageX: 0,
   imageY: 0,
   imageScale: 100,
@@ -705,7 +738,15 @@ const defaultSlideLayout: SlideLayout = {
 };
 
 const getMockupOption = (type: MockupChoice) =>
-  mockupOptions.find((option) => option.value === type) ?? mockupOptions[1];
+  mockupOptions.find((option) => option.value === type) ?? mockupOptions[0];
+
+const resolveMockupChoice = (
+  image: UploadedImage,
+  mockup: MockupChoice | undefined,
+): Exclude<MockupChoice, "auto"> => {
+  if (!mockup || mockup === "auto") return inferImageMockup(image);
+  return mockup;
+};
 
 const getSlideLayout = (
   layouts: Record<number, SlideLayout>,
@@ -841,6 +882,11 @@ export default function Home() {
   const [slideImages, setSlideImages] = useState<Record<number, string>>({});
   const [slideLayouts, setSlideLayouts] = useState<Record<number, SlideLayout>>({});
   const [imageMockups, setImageMockups] = useState<Record<string, MockupChoice>>({});
+  const [editorPanelWidth, setEditorPanelWidth] = useState(() => {
+    if (typeof window === "undefined") return 420;
+    const saved = Number(window.localStorage.getItem("umbrella-editor-panel-width"));
+    return Number.isFinite(saved) ? Math.min(520, Math.max(320, saved)) : 420;
+  });
   const [slides, setSlides] = useState<Slide[]>(demoSlides.map(hydrateSlide));
   const [undoStack, setUndoStack] = useState<DeckSnapshot[]>([]);
   const [slideVersions, setSlideVersions] = useState<Record<number, Slide[]>>({});
@@ -1101,7 +1147,7 @@ export default function Home() {
   };
 
   const getImageMockup = (image: UploadedImage): MockupChoice =>
-    imageMockups[image.id] ?? "none";
+    imageMockups[image.id] ?? "auto";
 
   const getImageById = (imageId?: string) =>
     libraryImages.find((image) => image.id === imageId);
@@ -1122,6 +1168,12 @@ export default function Home() {
 
   const updateImageMockup = (imageId: string, mockup: MockupChoice) => {
     setImageMockups((current) => ({ ...current, [imageId]: mockup }));
+  };
+
+  const updateEditorPanelWidth = (width: number) => {
+    const nextWidth = Math.min(520, Math.max(320, Math.round(width)));
+    setEditorPanelWidth(nextWidth);
+    window.localStorage.setItem("umbrella-editor-panel-width", String(nextWidth));
   };
 
   const removeImage = (imageId: string) => {
@@ -2267,12 +2319,18 @@ export default function Home() {
           image={getSlideImage(editingSlideIndex)}
           imageMockup={getSlideImageMockup(editingSlideIndex)}
           layout={getSlideLayout(slideLayouts, editingSlideIndex)}
+          panelWidth={editorPanelWidth}
           versions={slideVersions[editingSlideIndex] ?? []}
           onClose={() => setEditingSlideIndex(null)}
           onChange={(patch) => updateSlideText(editingSlideIndex, patch)}
           onThemeChange={(theme) => updateSlideTheme(editingSlideIndex, theme)}
+          onMockupChange={(mockup) => {
+            const image = getSlideImage(editingSlideIndex);
+            if (image) updateImageMockup(image.id, mockup);
+          }}
           onLayoutChange={(patch) => updateSlideLayout(editingSlideIndex, patch)}
           onLayoutChangeStart={commitSlideLayoutChange}
+          onPanelWidthChange={updateEditorPanelWidth}
           onRestoreVersion={(version) => restoreSlideVersion(editingSlideIndex, version)}
           onPasteImage={() => void pasteImageToSlide(editingSlideIndex)}
           onAddSlide={() => addSlideAfter(editingSlideIndex)}
@@ -2505,7 +2563,7 @@ function ImageMockupCard({
       title="Перетащите на слайд"
     >
       <div className="grid h-24 place-items-center rounded-md bg-white">
-        <MockupFrame image={image} mockup={mockup} compact />
+        <MockupFrame image={image} mockup={resolveMockupChoice(image, mockup)} compact />
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <p className="min-w-0 truncate text-xs font-semibold text-umbrella-muted">
@@ -2712,12 +2770,15 @@ function SlideEditorModal({
   image,
   imageMockup,
   layout,
+  panelWidth,
   versions,
   onClose,
   onChange,
   onThemeChange,
+  onMockupChange,
   onLayoutChange,
   onLayoutChangeStart,
+  onPanelWidthChange,
   onRestoreVersion,
   onPasteImage,
   onAddSlide,
@@ -2730,12 +2791,15 @@ function SlideEditorModal({
   image?: UploadedImage;
   imageMockup?: MockupChoice;
   layout: SlideLayout;
+  panelWidth: number;
   versions: Slide[];
   onClose: () => void;
   onChange: (patch: Partial<Pick<Slide, "title" | "body" | "bullets">>) => void;
   onThemeChange: (theme: SlideTheme) => void;
+  onMockupChange: (mockup: MockupChoice) => void;
   onLayoutChange: (patch: Partial<SlideLayout>) => void;
   onLayoutChangeStart: () => void;
+  onPanelWidthChange: (width: number) => void;
   onRestoreVersion: (version: Slide) => void;
   onPasteImage: () => void;
   onAddSlide: () => void;
@@ -2743,6 +2807,7 @@ function SlideEditorModal({
   onRegenerate: () => void;
 }) {
   const bullets = slide.bullets ?? defaultBulletsByKind[slide.kind];
+  const [isLayoutDrawerOpen, setIsLayoutDrawerOpen] = useState(false);
 
   const updateBullet = (bulletIndex: number, value: string) => {
     const nextBullets = [...bullets];
@@ -2750,9 +2815,39 @@ function SlideEditorModal({
     onChange({ bullets: nextBullets });
   };
 
+  const startPanelResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = panelWidth;
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      onPanelWidthChange(startWidth - (moveEvent.clientX - startX));
+    };
+    const handleUp = () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+    };
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+  };
+
+  const applyLayoutPreset = (preset: (typeof slideLayoutPresets)[number]) => {
+    onLayoutChangeStart();
+    onLayoutChange({
+      ...defaultSlideLayout,
+      ...preset.layout,
+      imageTransparency: layout.imageTransparency,
+    });
+    setIsLayoutDrawerOpen(false);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#07111C]/70 p-6 backdrop-blur-sm">
-      <div className="grid max-h-[92vh] w-full max-w-6xl grid-cols-[1.35fr_420px] overflow-hidden rounded-lg bg-white shadow-2xl">
+      <div
+        className="grid max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-lg bg-white shadow-2xl"
+        style={{ gridTemplateColumns: `minmax(0, 1fr) ${panelWidth}px` }}
+      >
         <div className="bg-[#111827] p-6">
           <div className="mb-4 flex items-center justify-between text-white">
             <div>
@@ -2775,13 +2870,21 @@ function SlideEditorModal({
               layout={layout}
               slides={[slide]}
               theme={theme}
+              editable
+              onLayoutChange={onLayoutChange}
+              onLayoutChangeStart={onLayoutChangeStart}
             />
           </div>
         </div>
 
-        <div className="overflow-y-auto p-6">
+        <div className="relative overflow-y-auto border-l border-umbrella-line p-5">
+          <div
+            className="absolute bottom-0 left-0 top-0 w-2 cursor-col-resize bg-transparent transition hover:bg-umbrella-accent/20"
+            onPointerDown={startPanelResize}
+            title="Изменить ширину панели"
+          />
           <div className="flex items-center justify-between gap-3">
-            <h3 className="font-display text-xl font-bold">Редактировать текст</h3>
+            <h3 className="font-display text-xl font-bold">Редактор слайда</h3>
             <div className="flex items-center gap-1">
               <button
                 className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
@@ -2804,6 +2907,15 @@ function SlideEditorModal({
               <button
                 className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
                 type="button"
+                onClick={() => setIsLayoutDrawerOpen(true)}
+                title="Сменить макет"
+                aria-label="Сменить макет"
+              >
+                <Palette className="h-4 w-4" />
+              </button>
+              <button
+                className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
+                type="button"
                 onClick={onRegenerate}
                 title="Перегенерировать"
                 aria-label="Перегенерировать"
@@ -2822,23 +2934,68 @@ function SlideEditorModal({
             </div>
           </div>
 
-          <div className="mt-5">
-            <ThemeSegmentedControl
-              label="Тема слайда"
-              value={theme}
-              onChange={onThemeChange}
-            />
-          </div>
+          <section className="mt-5 rounded-lg border border-umbrella-line bg-white p-4">
+            <h4 className="text-sm font-bold">Контент</h4>
+            <label className="mt-3 block">
+              <span className="mb-2 block text-xs font-bold text-umbrella-muted">Заголовок</span>
+              <input
+                className="h-11 w-full rounded-lg border border-umbrella-line px-3 text-sm font-semibold outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
+                value={slide.title}
+                onChange={(event) => onChange({ title: event.target.value })}
+              />
+            </label>
 
-          <div className="mt-5 rounded-lg border border-umbrella-line bg-[#FBFBFE] p-4">
+            <label className="mt-3 block">
+              <span className="mb-2 block text-xs font-bold text-umbrella-muted">Описание</span>
+              <textarea
+                className="min-h-[88px] w-full resize-none rounded-lg border border-umbrella-line px-3 py-2 text-sm leading-5 outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
+                value={slide.body ?? ""}
+                onChange={(event) => onChange({ body: event.target.value })}
+              />
+            </label>
+
+            <div className="mt-3">
+              <span className="mb-2 block text-xs font-bold text-umbrella-muted">Список пунктов</span>
+              <div className="space-y-2">
+                {bullets.slice(0, 5).map((bullet, bulletIndex) => (
+                  <input
+                    key={bulletIndex}
+                    className="h-10 w-full rounded-lg border border-umbrella-line px-3 text-sm outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
+                    value={bullet}
+                    onChange={(event) => updateBullet(bulletIndex, event.target.value)}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-4 rounded-lg border border-umbrella-line bg-[#FBFBFE] p-4">
             <div className="flex items-center justify-between gap-3">
-              <h4 className="text-sm font-bold">Макет</h4>
+              <h4 className="text-sm font-bold">Дизайн</h4>
               <button
                 className="text-xs font-bold text-umbrella-accent"
                 type="button"
-                onClick={() => onLayoutChange(defaultSlideLayout)}
+                onClick={() => setIsLayoutDrawerOpen(true)}
               >
-                Сбросить
+                Сменить макет
+              </button>
+            </div>
+            <div className="mt-3">
+              <ThemeSegmentedControl
+                label="Тема"
+                value={theme}
+                onChange={onThemeChange}
+              />
+            </div>
+            <div className="mt-3 rounded-lg border border-umbrella-line bg-white p-3">
+              <p className="text-xs font-bold text-umbrella-muted">Макет слайда</p>
+              <button
+                className="mt-2 flex w-full items-center justify-between rounded-md bg-umbrella-soft px-3 py-2 text-sm font-bold text-umbrella-accent"
+                type="button"
+                onClick={() => setIsLayoutDrawerOpen(true)}
+              >
+                {slideLayoutPresets.find((item) => item.value === layout.preset)?.label ?? "Split"}
+                <ChevronDown className="h-4 w-4 -rotate-90" />
               </button>
             </div>
             <div className="mt-3 grid gap-3">
@@ -2858,42 +3015,65 @@ function SlideEditorModal({
                 onChangeStart={onLayoutChangeStart}
                 onChange={(value) => onLayoutChange({ imageTransparency: value })}
               />
-              <div className="grid grid-cols-2 gap-3">
-                <RangeControl
-                  label="Изображение X"
-                  value={layout.imageX}
-                  min={-80}
-                  max={80}
-                  onChangeStart={onLayoutChangeStart}
-                  onChange={(value) => onLayoutChange({ imageX: value })}
-                />
-                <RangeControl
-                  label="Изображение Y"
-                  value={layout.imageY}
-                  min={-80}
-                  max={80}
-                  onChangeStart={onLayoutChangeStart}
-                  onChange={(value) => onLayoutChange({ imageY: value })}
-                />
-                <RangeControl
-                  label="Текст X"
-                  value={layout.textX}
-                  min={-80}
-                  max={80}
-                  onChangeStart={onLayoutChangeStart}
-                  onChange={(value) => onLayoutChange({ textX: value })}
-                />
-                <RangeControl
-                  label="Текст Y"
-                  value={layout.textY}
-                  min={-80}
-                  max={80}
-                  onChangeStart={onLayoutChangeStart}
-                  onChange={(value) => onLayoutChange({ textY: value })}
-                />
-              </div>
             </div>
-          </div>
+          </section>
+
+          <section className="mt-4 rounded-lg border border-umbrella-line bg-white p-4">
+            <h4 className="text-sm font-bold">Изображения</h4>
+            {image ? (
+              <>
+                <div className="mt-3 grid h-32 place-items-center rounded-lg border border-umbrella-line bg-[#FBFBFE]">
+                  <img
+                    src={image.dataUrl}
+                    alt={image.name}
+                    className="max-h-28 max-w-full object-contain"
+                  />
+                </div>
+                <div className="mt-3 rounded-lg border border-umbrella-line bg-[#FBFBFE] p-3">
+                  <label className="flex items-start gap-3">
+                    <span className="relative mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border border-umbrella-line bg-white">
+                      <input
+                        className="peer absolute inset-0 opacity-0"
+                        type="checkbox"
+                        checked={!imageMockup || imageMockup === "auto"}
+                        onChange={(event) => onMockupChange(event.target.checked ? "auto" : "none")}
+                      />
+                      <span className="h-2.5 w-2.5 rounded-sm bg-transparent peer-checked:bg-umbrella-accent" />
+                    </span>
+                    <span className="text-xs font-semibold text-umbrella-muted">
+                      Автоматически подбирать мокапы
+                    </span>
+                  </label>
+                  <label className="mt-3 block">
+                    <span className="mb-2 block text-xs font-bold text-umbrella-muted">Мокап</span>
+                    <span className="relative flex h-10 items-center rounded-lg border border-umbrella-line bg-white px-3">
+                      <select
+                        className="h-full w-full appearance-none bg-transparent text-sm font-bold outline-none"
+                        value={imageMockup ?? "auto"}
+                        onChange={(event) => onMockupChange(event.target.value as MockupChoice)}
+                      >
+                        {mockupOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 h-4 w-4 text-umbrella-muted" />
+                    </span>
+                  </label>
+                </div>
+              </>
+            ) : (
+              <button
+                className="mt-3 flex h-24 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#9DBBFF] bg-umbrella-soft text-sm font-bold text-umbrella-accent"
+                type="button"
+                onClick={onPasteImage}
+              >
+                <Clipboard className="h-4 w-4" />
+                Вставить из буфера
+              </button>
+            )}
+          </section>
 
           {versions.length > 0 && (
             <div className="mt-5 rounded-lg border border-umbrella-line bg-white p-4">
@@ -2916,38 +3096,6 @@ function SlideEditorModal({
             </div>
           )}
 
-          <label className="mt-5 block">
-            <span className="mb-2 block text-sm font-bold">Заголовок</span>
-            <input
-              className="h-11 w-full rounded-lg border border-umbrella-line px-3 text-sm font-semibold outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
-              value={slide.title}
-              onChange={(event) => onChange({ title: event.target.value })}
-            />
-          </label>
-
-          <label className="mt-4 block">
-            <span className="mb-2 block text-sm font-bold">Описание</span>
-            <textarea
-              className="min-h-[96px] w-full resize-none rounded-lg border border-umbrella-line px-3 py-2 text-sm leading-5 outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
-              value={slide.body ?? ""}
-              onChange={(event) => onChange({ body: event.target.value })}
-            />
-          </label>
-
-          <div className="mt-4">
-            <span className="mb-2 block text-sm font-bold">Пункты</span>
-            <div className="space-y-2">
-              {bullets.slice(0, 5).map((bullet, bulletIndex) => (
-                <input
-                  key={bulletIndex}
-                  className="h-10 w-full rounded-lg border border-umbrella-line px-3 text-sm outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
-                  value={bullet}
-                  onChange={(event) => updateBullet(bulletIndex, event.target.value)}
-                />
-              ))}
-            </div>
-          </div>
-
           <button
             className="mt-6 h-11 w-full rounded-lg bg-umbrella-accent px-4 text-sm font-bold text-white transition hover:bg-[#0042D6]"
             type="button"
@@ -2955,6 +3103,54 @@ function SlideEditorModal({
           >
             Готово
           </button>
+
+          {isLayoutDrawerOpen && (
+            <div className="fixed inset-0 z-[60] flex justify-end bg-[#07111C]/40">
+              <div className="h-full w-full max-w-md overflow-y-auto bg-white p-5 shadow-2xl">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-xl font-bold">Макеты</h3>
+                  <button
+                    className="rounded-md p-2 text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-ink"
+                    type="button"
+                    onClick={() => setIsLayoutDrawerOpen(false)}
+                    aria-label="Закрыть макеты"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  {slideLayoutPresets.map((preset) => (
+                    <button
+                      key={preset.value}
+                      className={`rounded-lg border p-3 text-left transition ${
+                        layout.preset === preset.value
+                          ? "border-umbrella-accent bg-umbrella-soft"
+                          : "border-umbrella-line bg-white hover:border-[#9DBBFF]"
+                      }`}
+                      type="button"
+                      onClick={() => applyLayoutPreset(preset)}
+                    >
+                      <div className="slide-aspect overflow-hidden rounded-md bg-[#07111C] p-3">
+                        <div className="h-1 w-10 bg-umbrella-accent" />
+                        <div className="mt-4 grid h-[70%] grid-cols-[1fr_0.8fr] gap-3">
+                          <div className="space-y-2">
+                            <div className="h-4 rounded bg-white" />
+                            <div className="h-2 rounded bg-white/60" />
+                            <div className="h-2 w-2/3 rounded bg-white/60" />
+                          </div>
+                          <div className="rounded bg-umbrella-accent/40" />
+                        </div>
+                      </div>
+                      <p className="mt-3 text-sm font-bold">{preset.label}</p>
+                      <p className="mt-1 text-xs leading-4 text-umbrella-muted">
+                        {preset.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -2967,7 +3163,7 @@ function MockupFrame({
   compact = false,
 }: {
   image: UploadedImage;
-  mockup: MockupChoice;
+  mockup: Exclude<MockupChoice, "auto">;
   compact?: boolean;
 }) {
   if (mockup === "none") {
@@ -2982,14 +3178,20 @@ function MockupFrame({
     );
   }
 
-  if (mockup === "iphone") {
+  if (mockup === "iphone" || mockup === "android") {
     return (
       <div
-        className={`relative overflow-hidden rounded-[20px] border-[5px] border-[#1E2028] bg-[#1E2028] shadow-card ${
+        className={`relative overflow-hidden rounded-[20px] border-[5px] ${
+          mockup === "android" ? "border-[#232631] bg-[#232631]" : "border-[#1E2028] bg-[#1E2028]"
+        } shadow-card ${
           compact ? "h-20 w-11" : "h-full max-h-[190px] w-24"
         }`}
       >
-        <span className="absolute left-1/2 top-1 z-10 h-1.5 w-6 -translate-x-1/2 rounded-full bg-[#1E2028]" />
+        <span
+          className={`absolute left-1/2 top-1 z-10 h-1.5 -translate-x-1/2 rounded-full ${
+            mockup === "android" ? "w-3 bg-[#596070]" : "w-6 bg-[#1E2028]"
+          }`}
+        />
         <img
           src={image.dataUrl}
           alt={image.name}
@@ -3010,6 +3212,22 @@ function MockupFrame({
           />
         </div>
         <div className="mx-auto h-2 w-[112%] -translate-x-[5%] rounded-b-lg bg-[#D8DAE2]" />
+      </div>
+    );
+  }
+
+  if (mockup === "desktop") {
+    return (
+      <div className={compact ? "w-28" : "w-40"}>
+        <div className="overflow-hidden rounded-md border-[5px] border-[#232631] bg-[#232631] shadow-card">
+          <img
+            src={image.dataUrl}
+            alt={image.name}
+            className={`${compact ? "h-14" : "h-24"} w-full object-cover`}
+          />
+        </div>
+        <div className="mx-auto h-5 w-10 bg-[#C8D2E2]" />
+        <div className="mx-auto h-1.5 w-16 rounded bg-[#AEBBD0]" />
       </div>
     );
   }
@@ -3041,6 +3259,9 @@ function SlidePreview({
   layout,
   slides,
   theme,
+  editable = false,
+  onLayoutChange,
+  onLayoutChangeStart,
 }: {
   slide: Slide;
   image?: UploadedImage;
@@ -3048,6 +3269,9 @@ function SlidePreview({
   layout: SlideLayout;
   slides: Slide[];
   theme: SlideTheme;
+  editable?: boolean;
+  onLayoutChange?: (patch: Partial<SlideLayout>) => void;
+  onLayoutChangeStart?: () => void;
 }) {
   const isLight = theme === "light";
   const previewBg = isLight ? "bg-[#F7F7F7]" : "bg-[#07111C]";
@@ -3055,6 +3279,46 @@ function SlidePreview({
   const secondaryText = isLight ? "text-[#6B6D75]" : "text-white";
   const panelBg = isLight ? "bg-white" : "bg-white/5";
   const imageOpacity = isLight ? "opacity-20" : "opacity-35";
+  const resolvedMockup = image ? resolveMockupChoice(image, imageMockup) : "none";
+
+  const startElementDrag = (
+    target: "text" | "image",
+    event: ReactPointerEvent<HTMLElement>,
+  ) => {
+    if (!editable || !onLayoutChange) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onLayoutChangeStart?.();
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startLayout = layout;
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+
+      if (target === "image") {
+        onLayoutChange({
+          imageX: startLayout.imageX + dx,
+          imageY: startLayout.imageY + dy,
+        });
+        return;
+      }
+
+      onLayoutChange({
+        textX: startLayout.textX + dx,
+        textY: startLayout.textY + dy,
+      });
+    };
+    const handleUp = () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+    };
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+  };
 
   if (slide.kind === "cover" || slide.kind === "final") {
     return (
@@ -3167,7 +3431,10 @@ function SlidePreview({
       />
       <div className="absolute right-4 top-6 h-28 w-28 rounded-full border-[18px] border-umbrella-accent/50" />
       <div
-        className="relative z-10"
+        className={`relative z-10 rounded-md ${
+          editable ? "cursor-move outline outline-1 outline-transparent hover:outline-umbrella-accent" : ""
+        }`}
+        onPointerDown={(event) => startElementDrag("text", event)}
         style={{
           transform: `translate(${layout.textX}px, ${layout.textY}px)`,
         }}
@@ -3189,7 +3456,10 @@ function SlidePreview({
       </div>
       {slide.kind === "image" && image ? (
         <div
-          className="relative z-10 flex h-full w-36 items-center justify-center"
+          className={`relative z-10 flex h-full w-36 items-center justify-center rounded-md ${
+            editable ? "cursor-move outline outline-1 outline-transparent hover:outline-umbrella-accent" : ""
+          }`}
+          onPointerDown={(event) => startElementDrag("image", event)}
           style={{
             transform: `translate(${layout.imageX}px, ${layout.imageY}px) scale(${layout.imageScale / 100})`,
             opacity: (100 - layout.imageTransparency) / 100,
@@ -3197,8 +3467,11 @@ function SlidePreview({
         >
           <MockupFrame
             image={image}
-            mockup={imageMockup ?? "none"}
+            mockup={resolvedMockup}
           />
+          {editable && (
+            <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-umbrella-accent shadow" />
+          )}
         </div>
       ) : (
         <div className="relative z-10 mt-16 hidden h-16 w-16 rounded-full bg-umbrella-accent/30 md:block" />
