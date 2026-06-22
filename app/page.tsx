@@ -1,41 +1,26 @@
 "use client";
 
 import {
-  Ban,
-  BarChart3,
   ChevronDown,
+  Check,
   CircleHelp,
-  Clipboard,
   Download,
   FileText,
-  History,
   Image as ImageIcon,
   Laptop,
-  Library,
   Maximize2,
   Monitor,
   Moon,
-  Palette,
   Pencil,
   Plus,
   RotateCcw,
   Sparkles,
   Smartphone,
   Sun,
-  Trash2,
-  Undo2,
   X,
 } from "lucide-react";
 import PptxGenJS from "pptxgenjs";
-import {
-  ChangeEvent,
-  DragEvent,
-  PointerEvent as ReactPointerEvent,
-  ReactNode,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { ChangeEvent, DragEvent, ReactNode, useMemo, useRef, useState } from "react";
 
 type PresentationType =
   | "Демо проекта"
@@ -53,9 +38,7 @@ type PresentationStyle =
 
 type SlideCount = "5–7" | "8–10" | "11–15";
 type SlideTheme = "dark" | "light";
-type MockupType = "iphone" | "android" | "browser" | "macbook" | "desktop";
-type MockupChoice = MockupType | "none" | "auto";
-type SlideLayoutPreset = "hero" | "split" | "kpi" | "feature" | "timeline" | "deviceWall";
+type MockupType = "iphone" | "browser" | "macbook";
 
 type TextSource = "text" | "file";
 
@@ -70,39 +53,11 @@ type UploadedImage = UploadedFile & {
   dataUrl: string;
 };
 
-type ChartType =
-  | "ai"
-  | "bar"
-  | "line"
-  | "pie"
-  | "donut"
-  | "area"
-  | "funnel"
-  | "timeline"
-  | "radar";
-
 type Slide = {
   title: string;
   kind: "cover" | "agenda" | "content" | "metrics" | "image" | "final";
   body?: string;
   bullets?: string[];
-};
-
-type SlideLayout = {
-  preset: SlideLayoutPreset;
-  imageX: number;
-  imageY: number;
-  imageScale: number;
-  imageTransparency: number;
-  textX: number;
-  textY: number;
-};
-
-type DeckSnapshot = {
-  slides: Slide[];
-  slideThemes: Record<number, SlideTheme>;
-  slideImages: Record<number, string>;
-  slideLayouts: Record<number, SlideLayout>;
 };
 
 type PresentationPrompt = {
@@ -135,50 +90,12 @@ const slideThemeOptions: Array<{ label: string; value: SlideTheme }> = [
 
 const mockupOptions: Array<{
   label: string;
-  value: MockupChoice;
+  value: MockupType;
   icon: typeof Smartphone;
 }> = [
-  { label: "Авто", value: "auto", icon: Sparkles },
-  { label: "Без мокапа", value: "none", icon: Ban },
+  { label: "iPhone", value: "iphone", icon: Smartphone },
   { label: "Browser", value: "browser", icon: Monitor },
   { label: "Macbook", value: "macbook", icon: Laptop },
-  { label: "iPhone", value: "iphone", icon: Smartphone },
-  { label: "Android", value: "android", icon: Smartphone },
-  { label: "Desktop", value: "desktop", icon: Monitor },
-];
-
-const slideLayoutPresets: Array<{
-  label: string;
-  value: SlideLayoutPreset;
-  description: string;
-  layout: Partial<SlideLayout>;
-}> = [
-  { label: "Hero", value: "hero", description: "Крупный заголовок и акцент", layout: { preset: "hero", textX: 0, textY: 0, imageX: 12, imageY: 0, imageScale: 130 } },
-  { label: "Split", value: "split", description: "Текст слева, визуал справа", layout: { preset: "split", textX: 0, textY: 0, imageX: 0, imageY: 0, imageScale: 100 } },
-  { label: "KPI", value: "kpi", description: "Метрики и короткие выводы", layout: { preset: "kpi", textX: 0, textY: -6, imageX: 10, imageY: 8, imageScale: 92 } },
-  { label: "Feature", value: "feature", description: "Фича и преимущества", layout: { preset: "feature", textX: 0, textY: 8, imageX: -8, imageY: -4, imageScale: 115 } },
-  { label: "Timeline", value: "timeline", description: "Этапы и последовательность", layout: { preset: "timeline", textX: 0, textY: -12, imageX: 0, imageY: 20, imageScale: 90 } },
-  { label: "Device Wall", value: "deviceWall", description: "Несколько экранов продукта", layout: { preset: "deviceWall", textX: -4, textY: 0, imageX: 0, imageY: 0, imageScale: 145 } },
-];
-
-const standardImages: UploadedImage[] = Array.from({ length: 14 }, (_, index) => ({
-  id: `standard-${index + 1}`,
-  name: `Иллюстрация ${index + 1}`,
-  size: 0,
-  type: "image/png",
-  dataUrl: `/standard-images/standard-${String(index + 1).padStart(2, "0")}.png`,
-}));
-
-const chartTypeOptions: Array<{ label: string; value: ChartType }> = [
-  { label: "Выбор AI", value: "ai" },
-  { label: "Столбцы", value: "bar" },
-  { label: "Линия", value: "line" },
-  { label: "Круговая", value: "pie" },
-  { label: "Кольцевая", value: "donut" },
-  { label: "Область", value: "area" },
-  { label: "Воронка", value: "funnel" },
-  { label: "Таймлайн", value: "timeline" },
-  { label: "Радар", value: "radar" },
 ];
 
 const demoSlides: Slide[] = [
@@ -687,30 +604,11 @@ const formatSize = (bytes: number) => {
   return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
 };
 
-const acceptedTextFormats = [".docx", ".txt", ".pdf", ".pptx"];
-const acceptedImageExtensions = [".png", ".jpg", ".jpeg", ".webp"];
+const acceptedTextFormats = [".docx", ".txt", ".pdf"];
 const acceptedImageFormats = ["image/png", "image/jpeg", "image/webp"];
-const sourceFileAccept = [...acceptedTextFormats, ...acceptedImageExtensions].join(",");
-
-const isTextMaterialFile = (file: File) => {
-  const lowerName = file.name.toLowerCase();
-  return acceptedTextFormats.some((format) => lowerName.endsWith(format));
-};
-
-const isImageFile = (file: File) => {
-  const lowerName = file.name.toLowerCase();
-  return (
-    acceptedImageFormats.includes(file.type) ||
-    acceptedImageExtensions.some((format) => lowerName.endsWith(format))
-  );
-};
 
 const inferImageMockup = (image: UploadedImage): MockupType => {
   const name = image.name.toLowerCase();
-
-  if (/android/.test(name)) {
-    return "android";
-  }
 
   if (/iphone|phone|mobile|screen|screenshot|моб|телефон/.test(name)) {
     return "iphone";
@@ -727,31 +625,8 @@ const inferImageMockup = (image: UploadedImage): MockupType => {
   return "browser";
 };
 
-const defaultSlideLayout: SlideLayout = {
-  preset: "split",
-  imageX: 0,
-  imageY: 0,
-  imageScale: 100,
-  imageTransparency: 0,
-  textX: 0,
-  textY: 0,
-};
-
-const getMockupOption = (type: MockupChoice) =>
-  mockupOptions.find((option) => option.value === type) ?? mockupOptions[0];
-
-const resolveMockupChoice = (
-  image: UploadedImage,
-  mockup: MockupChoice | undefined,
-): Exclude<MockupChoice, "auto"> => {
-  if (!mockup || mockup === "auto") return inferImageMockup(image);
-  return mockup;
-};
-
-const getSlideLayout = (
-  layouts: Record<number, SlideLayout>,
-  index: number,
-): SlideLayout => ({ ...defaultSlideLayout, ...(layouts[index] ?? {}) });
+const getMockupOption = (type: MockupType) =>
+  mockupOptions.find((option) => option.value === type) ?? mockupOptions[1];
 
 const brandSlideAssets = {
   coverPhoto: "/brand/slides/code-photo-4.jpg",
@@ -772,78 +647,6 @@ const loadImageDataUrl = async (src: string) => {
     reader.onload = () => resolve(String(reader.result));
     reader.readAsDataURL(blob);
   });
-};
-
-const svgToDataUrl = (svg: string) =>
-  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-
-const pickChartType = (description: string, selectedType: ChartType): Exclude<ChartType, "ai"> => {
-  if (selectedType !== "ai") return selectedType;
-
-  const text = description.toLowerCase();
-  if (/этап|план|timeline|roadmap|срок|квартал/.test(text)) return "timeline";
-  if (/ворон|funnel|конвер/.test(text)) return "funnel";
-  if (/доля|процент|share|част/.test(text)) return "donut";
-  if (/динами|рост|trend|месяц|год/.test(text)) return "line";
-  if (/сравн|compare|категор/.test(text)) return "bar";
-  return "bar";
-};
-
-const createChartImage = (description: string, selectedType: ChartType): UploadedImage => {
-  const chartType = pickChartType(description, selectedType);
-  const safeTitle =
-    description.trim().split(/\n|\.|;/)[0]?.slice(0, 64) || "Диаграмма";
-  const title = safeTitle.replace(/[<&>]/g, "");
-  const chartShapes: Record<Exclude<ChartType, "ai">, string> = {
-    bar: `
-      <rect x="86" y="220" width="48" height="120" rx="8" fill="#0050FF"/>
-      <rect x="158" y="172" width="48" height="168" rx="8" fill="#88A8FF"/>
-      <rect x="230" y="118" width="48" height="222" rx="8" fill="#0050FF"/>
-      <rect x="302" y="202" width="48" height="138" rx="8" fill="#C7D7FF"/>
-      <path d="M70 340H382" stroke="#D8E2F7" stroke-width="4"/>`,
-    line: `
-      <path d="M78 302C130 248 156 270 204 206C246 150 288 174 358 104" fill="none" stroke="#0050FF" stroke-width="12" stroke-linecap="round"/>
-      <path d="M78 342H382" stroke="#D8E2F7" stroke-width="4"/>
-      <circle cx="204" cy="206" r="12" fill="#88A8FF"/><circle cx="358" cy="104" r="12" fill="#0050FF"/>`,
-    pie: `
-      <path d="M240 112A112 112 0 1 1 146 285L240 224Z" fill="#0050FF"/>
-      <path d="M240 112A112 112 0 0 1 352 224H240Z" fill="#88A8FF"/>
-      <path d="M352 224A112 112 0 0 1 146 285L240 224Z" fill="#C7D7FF"/>`,
-    donut: `
-      <circle cx="240" cy="226" r="112" fill="none" stroke="#0050FF" stroke-width="42" stroke-dasharray="430 704" transform="rotate(-90 240 226)"/>
-      <circle cx="240" cy="226" r="112" fill="none" stroke="#88A8FF" stroke-width="42" stroke-dasharray="170 704" stroke-dashoffset="-430" transform="rotate(-90 240 226)"/>
-      <circle cx="240" cy="226" r="112" fill="none" stroke="#D8E2F7" stroke-width="42" stroke-dasharray="104 704" stroke-dashoffset="-600" transform="rotate(-90 240 226)"/>`,
-    area: `
-      <path d="M70 322C126 238 168 270 220 186C274 98 318 158 390 86V342H70Z" fill="#0050FF" opacity=".28"/>
-      <path d="M70 322C126 238 168 270 220 186C274 98 318 158 390 86" fill="none" stroke="#0050FF" stroke-width="10" stroke-linecap="round"/>`,
-    funnel: `
-      <path d="M90 110H390L342 176H138Z" fill="#0050FF"/>
-      <path d="M142 200H338L302 264H178Z" fill="#88A8FF"/>
-      <path d="M184 288H296L268 348H212Z" fill="#C7D7FF"/>`,
-    timeline: `
-      <path d="M74 226H400" stroke="#0050FF" stroke-width="10" stroke-linecap="round"/>
-      <circle cx="102" cy="226" r="24" fill="#0050FF"/><circle cx="224" cy="226" r="24" fill="#88A8FF"/><circle cx="346" cy="226" r="24" fill="#0050FF"/>
-      <rect x="78" y="276" width="78" height="34" rx="8" fill="#D8E2F7"/><rect x="198" y="154" width="78" height="34" rx="8" fill="#D8E2F7"/><rect x="320" y="276" width="78" height="34" rx="8" fill="#D8E2F7"/>`,
-    radar: `
-      <path d="M240 100L354 184L310 326H170L126 184Z" fill="none" stroke="#D8E2F7" stroke-width="6"/>
-      <path d="M240 132L320 196L292 292H184L152 198Z" fill="#0050FF" opacity=".35" stroke="#0050FF" stroke-width="8"/>`,
-  };
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360">
-      <rect width="480" height="360" rx="28" fill="#F7F9FF"/>
-      <rect x="32" y="32" width="416" height="296" rx="22" fill="#FFFFFF"/>
-      <rect x="56" y="58" width="68" height="8" rx="4" fill="#0050FF"/>
-      <text x="56" y="94" font-family="Inter, Arial" font-size="22" font-weight="800" fill="#282A32">${title}</text>
-      ${chartShapes[chartType]}
-    </svg>`;
-
-  return {
-    id: `chart-${crypto.randomUUID()}`,
-    name: title,
-    size: svg.length,
-    type: "image/svg+xml",
-    dataUrl: svgToDataUrl(svg),
-  };
 };
 
 const buildInitialSlideImages = (slides: Slide[], images: UploadedImage[]) => {
@@ -868,11 +671,6 @@ export default function Home() {
   const [manualText, setManualText] = useState("");
   const [textFile, setTextFile] = useState<UploadedFile | null>(null);
   const [images, setImages] = useState<UploadedImage[]>([]);
-  const [chartImages, setChartImages] = useState<UploadedImage[]>([]);
-  const [isStandardLibraryOpen, setIsStandardLibraryOpen] = useState(false);
-  const [isChartLibraryOpen, setIsChartLibraryOpen] = useState(false);
-  const [chartDescription, setChartDescription] = useState("");
-  const [chartType, setChartType] = useState<ChartType>("ai");
   const [presentationType, setPresentationType] =
     useState<PresentationType>("Демо проекта");
   const [style, setStyle] = useState<PresentationStyle>("Umbrella корпоративный");
@@ -880,16 +678,10 @@ export default function Home() {
   const [deckTheme, setDeckTheme] = useState<SlideTheme>("dark");
   const [slideThemes, setSlideThemes] = useState<Record<number, SlideTheme>>({});
   const [slideImages, setSlideImages] = useState<Record<number, string>>({});
-  const [slideLayouts, setSlideLayouts] = useState<Record<number, SlideLayout>>({});
-  const [imageMockups, setImageMockups] = useState<Record<string, MockupChoice>>({});
-  const [editorPanelWidth, setEditorPanelWidth] = useState(() => {
-    if (typeof window === "undefined") return 420;
-    const saved = Number(window.localStorage.getItem("umbrella-editor-panel-width"));
-    return Number.isFinite(saved) ? Math.min(520, Math.max(320, saved)) : 420;
-  });
+  const [autoMockups, setAutoMockups] = useState(true);
+  const [isMockupPanelOpen, setIsMockupPanelOpen] = useState(false);
+  const [imageMockups, setImageMockups] = useState<Record<string, MockupType>>({});
   const [slides, setSlides] = useState<Slide[]>(demoSlides.map(hydrateSlide));
-  const [undoStack, setUndoStack] = useState<DeckSnapshot[]>([]);
-  const [slideVersions, setSlideVersions] = useState<Record<number, Slide[]>>({});
   const [generationPrompt, setGenerationPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState("");
@@ -897,19 +689,17 @@ export default function Home() {
   const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null);
   const textFileRef = useRef<HTMLInputElement | null>(null);
   const imageFileRef = useRef<HTMLInputElement | null>(null);
-  const chartFileRef = useRef<HTMLInputElement | null>(null);
-  const chartImageRef = useRef<HTMLInputElement | null>(null);
-
-  const libraryImages = useMemo(
-    () => [...images, ...chartImages, ...standardImages],
-    [chartImages, images],
-  );
 
   const materializeSlides = (baseSlides: Slide[]) => {
-    if (
-      images.length + chartImages.length > 0 &&
-      !baseSlides.some((slide) => slide.kind === "image")
-    ) {
+    if (images.length === 0) {
+      return baseSlides.map((slide) =>
+        slide.kind === "image"
+          ? hydrateSlide({ ...slide, kind: "content" as const })
+          : hydrateSlide(slide),
+      );
+    }
+
+    if (!baseSlides.some((slide) => slide.kind === "image")) {
       const finalSlideIndex = baseSlides.findIndex((slide) => slide.kind === "final");
       const imageSlide: Slide = {
         title: "Скриншот решения",
@@ -932,51 +722,17 @@ export default function Home() {
 
   const currentSlides = useMemo(
     () => materializeSlides(slides),
-    [chartImages.length, images.length, slides],
+    [images.length, slides],
   );
-
-  const saveUndoSnapshot = () => {
-    setUndoStack((current) =>
-      [
-        ...current,
-        {
-          slides: currentSlides,
-          slideThemes,
-          slideImages,
-          slideLayouts,
-        },
-      ].slice(-12),
-    );
-  };
-
-  const rememberSlideVersion = (index: number, slide: Slide) => {
-    setSlideVersions((current) => ({
-      ...current,
-      [index]: [slide, ...(current[index] ?? [])].slice(0, 8),
-    }));
-  };
-
-  const revertLastStep = () => {
-    const snapshot = undoStack[undoStack.length - 1];
-    if (!snapshot) return;
-
-    setSlides(snapshot.slides.map(hydrateSlide));
-    setSlideThemes(snapshot.slideThemes);
-    setSlideImages(snapshot.slideImages);
-    setSlideLayouts(snapshot.slideLayouts);
-    setUndoStack((current) => current.slice(0, -1));
-    setHasGenerated(true);
-  };
 
   const handleTextFile = (file?: File) => {
     if (!file) return;
+    const lowerName = file.name.toLowerCase();
+    const isAllowed = acceptedTextFormats.some((format) =>
+      lowerName.endsWith(format),
+    );
 
-    if (isImageFile(file)) {
-      void handleImageFiles([file]);
-      return;
-    }
-
-    if (!isTextMaterialFile(file)) return;
+    if (!isAllowed) return;
     setTextFile({ name: file.name, size: file.size, type: file.type });
   };
 
@@ -984,7 +740,7 @@ export default function Home() {
     if (!fileList) return;
 
     const incoming = Array.from(fileList)
-      .filter(isImageFile)
+      .filter((file) => acceptedImageFormats.includes(file.type))
       .slice(0, Math.max(0, 10 - images.length));
 
     const loaded = await Promise.all(
@@ -1008,43 +764,6 @@ export default function Home() {
     setImages((current) => [...current, ...loaded].slice(0, 10));
   };
 
-  const loadImagesFromFiles = async (fileList?: FileList | File[]) => {
-    if (!fileList) return [];
-
-    const incoming = Array.from(fileList).filter(isImageFile);
-    return Promise.all(
-      incoming.map(
-        (file) =>
-          new Promise<UploadedImage>((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () =>
-              resolve({
-                id: `${file.name}-${file.size}-${crypto.randomUUID()}`,
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                dataUrl: String(reader.result),
-              });
-            reader.readAsDataURL(file);
-          }),
-      ),
-    );
-  };
-
-  const handleChartImageFiles = async (fileList?: FileList | File[]) => {
-    const loaded = await loadImagesFromFiles(fileList);
-    if (loaded.length > 0) {
-      setChartImages((current) => [...loaded, ...current].slice(0, 24));
-    }
-  };
-
-  const handleChartTableFile = (file?: File) => {
-    if (!file) return;
-    setChartDescription((current) =>
-      `${current.trim() ? `${current.trim()}\n` : ""}Источник данных: ${file.name}`,
-    );
-  };
-
   const onDropText = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     handleTextFile(event.dataTransfer.files[0]);
@@ -1055,14 +774,7 @@ export default function Home() {
     void handleImageFiles(event.dataTransfer.files);
   };
 
-  const generateChart = () => {
-    const nextChart = createChartImage(chartDescription, chartType);
-    setChartImages((current) => [nextChart, ...current].slice(0, 24));
-    setChartDescription("");
-  };
-
   const createPresentation = async () => {
-    saveUndoSnapshot();
     const nextPrompt = buildPresentationPrompt({
       type: presentationType,
       style,
@@ -1112,7 +824,6 @@ export default function Home() {
         Object.fromEntries(generatedSlides.map((_, index) => [index, deckTheme])),
       );
       setSlideImages(buildInitialSlideImages(generatedSlides, images));
-      setSlideLayouts({});
       setHasGenerated(true);
 
       if (data.warning) {
@@ -1124,7 +835,6 @@ export default function Home() {
         Object.fromEntries(nextSlides.map((_, index) => [index, deckTheme])),
       );
       setSlideImages(buildInitialSlideImages(nextSlides, images));
-      setSlideLayouts({});
       setHasGenerated(true);
       setGenerationError(
         "AI недоступен: проверьте OPENAI_API_KEY. Пока использован локальный шаблон.",
@@ -1138,7 +848,6 @@ export default function Home() {
     slideThemes[index] ?? deckTheme;
 
   const updateSlideTheme = (index: number, theme: SlideTheme) => {
-    saveUndoSnapshot();
     setSlideThemes((current) => ({ ...current, [index]: theme }));
   };
 
@@ -1146,19 +855,17 @@ export default function Home() {
     updateSlideTheme(index, getSlideTheme(index) === "dark" ? "light" : "dark");
   };
 
-  const getImageMockup = (image: UploadedImage): MockupChoice =>
-    imageMockups[image.id] ?? "auto";
+  const getImageMockup = (image: UploadedImage): MockupType =>
+    autoMockups ? inferImageMockup(image) : imageMockups[image.id] ?? inferImageMockup(image);
 
   const getImageById = (imageId?: string) =>
-    libraryImages.find((image) => image.id === imageId);
+    images.find((image) => image.id === imageId);
 
   const getSlideImage = (index: number) => {
     const assignedImage = getImageById(slideImages[index]);
     if (assignedImage) return assignedImage;
 
-    return currentSlides[index]?.kind === "image"
-      ? images[0] ?? chartImages[0]
-      : undefined;
+    return currentSlides[index]?.kind === "image" ? images[0] : undefined;
   };
 
   const getSlideImageMockup = (index: number) => {
@@ -1166,19 +873,12 @@ export default function Home() {
     return image ? getImageMockup(image) : undefined;
   };
 
-  const updateImageMockup = (imageId: string, mockup: MockupChoice) => {
+  const updateImageMockup = (imageId: string, mockup: MockupType) => {
     setImageMockups((current) => ({ ...current, [imageId]: mockup }));
-  };
-
-  const updateEditorPanelWidth = (width: number) => {
-    const nextWidth = Math.min(520, Math.max(320, Math.round(width)));
-    setEditorPanelWidth(nextWidth);
-    window.localStorage.setItem("umbrella-editor-panel-width", String(nextWidth));
   };
 
   const removeImage = (imageId: string) => {
     setImages((current) => current.filter((item) => item.id !== imageId));
-    setChartImages((current) => current.filter((item) => item.id !== imageId));
     setSlideImages((current) =>
       Object.fromEntries(
         Object.entries(current).filter(([, assignedImageId]) => assignedImageId !== imageId),
@@ -1192,12 +892,6 @@ export default function Home() {
   };
 
   const replaceSlideAt = (index: number, nextSlide: Slide) => {
-    const previousSlide = currentSlides[index];
-    saveUndoSnapshot();
-    if (previousSlide) {
-      rememberSlideVersion(index, previousSlide);
-    }
-
     setSlides((current) => {
       const materialized = materializeSlides(current);
       return materialized.map((slide, slideIndex) =>
@@ -1221,114 +915,14 @@ export default function Home() {
     replaceSlideAt(index, regenerateSlideContent(currentSlide, index + Date.now()));
   };
 
-  const addSlideAfter = (index: number) => {
-    saveUndoSnapshot();
-    const newSlide: Slide = hydrateSlide({
-      title: "Новый слайд",
-      kind: "content",
-      bullets: ["Ключевая мысль", "Подтверждение", "Следующий шаг"],
-    });
-    setSlides((current) => {
-      const materialized = materializeSlides(current);
-      return [
-        ...materialized.slice(0, index + 1),
-        newSlide,
-        ...materialized.slice(index + 1),
-      ];
-    });
-    setHasGenerated(true);
-  };
-
-  const deleteSlideAt = (index: number) => {
-    if (currentSlides.length <= 1) return;
-    const currentSlide = currentSlides[index];
-    saveUndoSnapshot();
-    if (currentSlide) rememberSlideVersion(index, currentSlide);
-    setSlides((current) => {
-      const materialized = materializeSlides(current);
-      return materialized.filter((_, slideIndex) => slideIndex !== index);
-    });
-    setSlideImages((current) =>
-      Object.fromEntries(
-        Object.entries(current)
-          .map(([key, value]) => [Number(key), value] as const)
-          .filter(([key]) => key !== index)
-          .map(([key, value]) => [key > index ? key - 1 : key, value]),
-      ),
-    );
-    setSlideLayouts((current) =>
-      Object.fromEntries(
-        Object.entries(current)
-          .map(([key, value]) => [Number(key), value] as const)
-          .filter(([key]) => key !== index)
-          .map(([key, value]) => [key > index ? key - 1 : key, value]),
-      ),
-    );
-  };
-
   const assignImageToSlide = (index: number, imageId: string) => {
     const currentSlide = currentSlides[index];
     if (!currentSlide || !getImageById(imageId)) return;
 
-    saveUndoSnapshot();
     setSlideImages((current) => ({ ...current, [index]: imageId }));
     if (currentSlide.kind !== "image") {
       replaceSlideAt(index, { ...currentSlide, kind: "image" });
     }
-  };
-
-  const pasteImageToSlide = async (index: number) => {
-    if (!navigator.clipboard?.read) return;
-
-    try {
-      const clipboardItems = await navigator.clipboard.read();
-      for (const item of clipboardItems) {
-        const imageType = item.types.find((type) => type.startsWith("image/"));
-        if (!imageType) continue;
-
-        const blob = await item.getType(imageType);
-        const image = await new Promise<UploadedImage>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () =>
-            resolve({
-              id: `clipboard-${crypto.randomUUID()}`,
-              name: "Из буфера обмена",
-              size: blob.size,
-              type: imageType,
-              dataUrl: String(reader.result),
-            });
-          reader.readAsDataURL(blob);
-        });
-        setImages((current) => [image, ...current].slice(0, 10));
-        saveUndoSnapshot();
-        setSlideImages((current) => ({ ...current, [index]: image.id }));
-        const currentSlide = currentSlides[index];
-        if (currentSlide && currentSlide.kind !== "image") {
-          replaceSlideAt(index, { ...currentSlide, kind: "image" });
-        }
-        return;
-      }
-    } catch {
-      setGenerationError("Не удалось прочитать буфер обмена. Разрешите доступ браузеру.");
-    }
-  };
-
-  const updateSlideLayout = (index: number, patch: Partial<SlideLayout>) => {
-    setSlideLayouts((current) => ({
-      ...current,
-      [index]: {
-        ...getSlideLayout(current, index),
-        ...patch,
-      },
-    }));
-  };
-
-  const commitSlideLayoutChange = () => {
-    saveUndoSnapshot();
-  };
-
-  const restoreSlideVersion = (index: number, version: Slide) => {
-    replaceSlideAt(index, version);
   };
 
   const downloadPptx = async () => {
@@ -1814,7 +1408,6 @@ export default function Home() {
       }
 
       const assignedImage = getSlideImage(index);
-      const layout = getSlideLayout(slideLayouts, index);
 
       if (slide.kind === "image" && assignedImage) {
         page.addText("02", {
@@ -1839,11 +1432,10 @@ export default function Home() {
         });
         page.addImage({
           data: assignedImage.dataUrl,
-          x: 6.8 + layout.imageX / 90,
-          y: 1.05 + layout.imageY / 90,
-          w: 4.9 * (layout.imageScale / 100),
-          h: 5.5 * (layout.imageScale / 100),
-          transparency: layout.imageTransparency,
+          x: 6.8,
+          y: 1.05,
+          w: 4.9,
+          h: 5.5,
         });
         return;
       }
@@ -1974,7 +1566,7 @@ export default function Home() {
                   ref={textFileRef}
                   className="hidden"
                   type="file"
-                  accept={sourceFileAccept}
+                  accept=".docx,.txt,.pdf"
                   onChange={(event: ChangeEvent<HTMLInputElement>) =>
                     handleTextFile(event.target.files?.[0])
                   }
@@ -1992,7 +1584,7 @@ export default function Home() {
                     или выберите на компьютере
                   </p>
                   <p className="mt-2 text-xs text-umbrella-muted">
-                    Поддерживаются: .docx, .txt, .pdf, .pptx, .png, .jpg, .webp
+                    Поддерживаются: .docx, .txt, .pdf
                   </p>
                   <button
                     className="mt-3 rounded-md border border-[#9DBBFF] bg-white px-4 py-2 text-sm font-semibold text-umbrella-accent transition hover:bg-umbrella-blueSoft"
@@ -2064,123 +1656,72 @@ export default function Home() {
                       key={image.id}
                       image={image}
                       mockup={getImageMockup(image)}
-                      onMockupChange={(mockup) => updateImageMockup(image.id, mockup)}
                       onRemove={() => removeImage(image.id)}
                     />
                   ))}
                 </div>
-              </div>
-            )}
-          </section>
 
-          <section className="mt-5">
-            <button
-              className="flex w-full items-center justify-between rounded-lg border border-umbrella-line bg-white px-4 py-3 text-left text-sm font-bold transition hover:bg-[#F7F7FB]"
-              type="button"
-              onClick={() => setIsStandardLibraryOpen((current) => !current)}
-            >
-              <span className="inline-flex items-center gap-2">
-                <Library className="h-4 w-4 text-umbrella-accent" />
-                Библиотека изображений
-              </span>
-              <ChevronDown
-                className={`h-4 w-4 text-umbrella-muted transition ${
-                  isStandardLibraryOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-            {isStandardLibraryOpen && (
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                {standardImages.map((image) => (
-                  <LibraryImageCard key={image.id} image={image} />
-                ))}
-              </div>
-            )}
-          </section>
+                <label className="mt-4 flex items-start gap-3 rounded-lg border border-umbrella-line bg-[#FBFBFE] p-3">
+                  <span className="relative mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border border-umbrella-line bg-white">
+                    <input
+                      className="peer absolute inset-0 opacity-0"
+                      type="checkbox"
+                      checked={autoMockups}
+                      onChange={(event) => setAutoMockups(event.target.checked)}
+                    />
+                    <Check className="h-3.5 w-3.5 text-transparent peer-checked:text-umbrella-accent" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">
+                      Автоматически подбирать мокапы
+                    </span>
+                    <span className="mt-1 block text-xs leading-4 text-umbrella-muted">
+                      AI определит подходящий мокап для каждого изображения
+                    </span>
+                  </span>
+                </label>
 
-          <section className="mt-5">
-            <button
-              className="flex w-full items-center justify-between rounded-lg border border-umbrella-line bg-white px-4 py-3 text-left text-sm font-bold transition hover:bg-[#F7F7FB]"
-              type="button"
-              onClick={() => setIsChartLibraryOpen((current) => !current)}
-            >
-              <span className="inline-flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-umbrella-accent" />
-                Диаграммы
-              </span>
-              <ChevronDown
-                className={`h-4 w-4 text-umbrella-muted transition ${
-                  isChartLibraryOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-            {isChartLibraryOpen && (
-              <div className="mt-3 rounded-lg border border-umbrella-line bg-[#FBFBFE] p-3">
-                <textarea
-                  className="min-h-[92px] w-full resize-none rounded-lg border border-umbrella-line bg-white px-3 py-2 text-sm leading-5 outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
-                  placeholder="Опишите, какую диаграмму нужно получить"
-                  value={chartDescription}
-                  onChange={(event) => setChartDescription(event.target.value)}
-                />
-                <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-                  <select
-                    className="h-10 rounded-lg border border-umbrella-line bg-white px-3 text-sm font-semibold outline-none"
-                    value={chartType}
-                    onChange={(event) => setChartType(event.target.value as ChartType)}
-                  >
-                    {chartTypeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="rounded-lg bg-umbrella-accent px-4 text-sm font-bold text-white transition hover:bg-[#0042D6]"
-                    type="button"
-                    onClick={generateChart}
-                  >
-                    Создать
-                  </button>
-                </div>
-                <input
-                  ref={chartFileRef}
-                  className="hidden"
-                  type="file"
-                  accept=".csv,.tsv,.xlsx,.xls"
-                  onChange={(event) => handleChartTableFile(event.target.files?.[0])}
-                />
-                <input
-                  ref={chartImageRef}
-                  className="hidden"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  multiple
-                  onChange={(event) => void handleChartImageFiles(event.target.files ?? undefined)}
-                />
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button
-                    className="rounded-md border border-umbrella-line bg-white px-3 py-2 text-xs font-bold transition hover:bg-umbrella-soft"
-                    type="button"
-                    onClick={() => chartFileRef.current?.click()}
-                  >
-                    Загрузить таблицу
-                  </button>
-                  <button
-                    className="rounded-md border border-umbrella-line bg-white px-3 py-2 text-xs font-bold transition hover:bg-umbrella-soft"
-                    type="button"
-                    onClick={() => chartImageRef.current?.click()}
-                  >
-                    Вставить картинку
-                  </button>
-                </div>
-                {chartImages.length > 0 && (
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    {chartImages.map((image) => (
-                      <LibraryImageCard
-                        key={image.id}
-                        image={image}
-                        onRemove={() => removeImage(image.id)}
-                      />
+                <button
+                  className="mt-3 text-sm font-semibold text-umbrella-accent transition hover:text-[#0042D6]"
+                  type="button"
+                  onClick={() => {
+                    setIsMockupPanelOpen((current) => !current);
+                    setAutoMockups(false);
+                  }}
+                >
+                  Настроить вручную →
+                </button>
+
+                {isMockupPanelOpen && (
+                  <div className="mt-3 space-y-3 rounded-lg border border-umbrella-line bg-white p-3">
+                    {images.map((image) => (
+                      <div key={image.id} className="grid gap-2">
+                        <p className="truncate text-xs font-semibold text-umbrella-muted">
+                          {image.name}
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {mockupOptions.map((option) => {
+                            const Icon = option.icon;
+                            const isSelected = getImageMockup(image) === option.value;
+
+                            return (
+                              <button
+                                key={option.value}
+                                className={`grid h-16 place-items-center rounded-md border text-xs font-semibold transition ${
+                                  isSelected
+                                    ? "border-umbrella-accent bg-umbrella-soft text-umbrella-accent"
+                                    : "border-umbrella-line bg-white text-umbrella-muted hover:border-[#9DBBFF] hover:text-umbrella-ink"
+                                }`}
+                                type="button"
+                                onClick={() => updateImageMockup(image.id, option.value)}
+                              >
+                                <Icon className="h-5 w-5" />
+                                <span>{option.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -2245,21 +1786,10 @@ export default function Home() {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                className="inline-flex items-center gap-2 rounded-lg border border-umbrella-line bg-white px-4 py-2 text-sm font-semibold transition hover:bg-[#F7F7FB] disabled:cursor-not-allowed disabled:opacity-45"
-                type="button"
-                disabled={undoStack.length === 0}
-                onClick={revertLastStep}
-              >
-                <Undo2 className="h-4 w-4" />
-                Отменить
-              </button>
-              <button className="inline-flex items-center gap-2 rounded-lg border border-umbrella-line bg-white px-4 py-2 text-sm font-semibold transition hover:bg-[#F7F7FB]">
-                <Pencil className="h-4 w-4" />
-                Редактировать структуру
-              </button>
-            </div>
+            <button className="inline-flex items-center gap-2 rounded-lg border border-umbrella-line bg-white px-4 py-2 text-sm font-semibold transition hover:bg-[#F7F7FB]">
+              <Pencil className="h-4 w-4" />
+              Редактировать структуру
+            </button>
           </div>
 
           <div className="flex-1 border-y border-umbrella-line px-6 py-5">
@@ -2272,14 +1802,11 @@ export default function Home() {
                     index={index}
                     assignedImage={getSlideImage(index)}
                     imageMockup={getSlideImageMockup(index)}
-                    layout={getSlideLayout(slideLayouts, index)}
                     slides={currentSlides}
                     theme={getSlideTheme(index)}
                     onThemeToggle={() => toggleSlideTheme(index)}
                     onImageDrop={(imageId) => assignImageToSlide(index, imageId)}
                     onOpen={() => setEditingSlideIndex(index)}
-                    onAdd={() => addSlideAfter(index)}
-                    onDelete={() => deleteSlideAt(index)}
                     onRegenerate={() => regenerateSlide(index)}
                   />
                 ))}
@@ -2318,26 +1845,9 @@ export default function Home() {
           theme={getSlideTheme(editingSlideIndex)}
           image={getSlideImage(editingSlideIndex)}
           imageMockup={getSlideImageMockup(editingSlideIndex)}
-          layout={getSlideLayout(slideLayouts, editingSlideIndex)}
-          panelWidth={editorPanelWidth}
-          versions={slideVersions[editingSlideIndex] ?? []}
           onClose={() => setEditingSlideIndex(null)}
           onChange={(patch) => updateSlideText(editingSlideIndex, patch)}
           onThemeChange={(theme) => updateSlideTheme(editingSlideIndex, theme)}
-          onMockupChange={(mockup) => {
-            const image = getSlideImage(editingSlideIndex);
-            if (image) updateImageMockup(image.id, mockup);
-          }}
-          onLayoutChange={(patch) => updateSlideLayout(editingSlideIndex, patch)}
-          onLayoutChangeStart={commitSlideLayoutChange}
-          onPanelWidthChange={updateEditorPanelWidth}
-          onRestoreVersion={(version) => restoreSlideVersion(editingSlideIndex, version)}
-          onPasteImage={() => void pasteImageToSlide(editingSlideIndex)}
-          onAddSlide={() => addSlideAfter(editingSlideIndex)}
-          onDeleteSlide={() => {
-            deleteSlideAt(editingSlideIndex);
-            setEditingSlideIndex(null);
-          }}
           onRegenerate={() => regenerateSlide(editingSlideIndex)}
         />
       )}
@@ -2459,94 +1969,13 @@ function ThemeSegmentedControl({
   );
 }
 
-function RangeControl({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-  onChangeStart,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-  onChangeStart: () => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 flex items-center justify-between text-xs font-bold text-umbrella-muted">
-        <span>{label}</span>
-        <span>{value}</span>
-      </span>
-      <input
-        className="w-full accent-[#0050FF]"
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onMouseDown={onChangeStart}
-        onTouchStart={onChangeStart}
-        onChange={(event) => onChange(Number(event.target.value))}
-      />
-    </label>
-  );
-}
-
-function LibraryImageCard({
-  image,
-  onRemove,
-}: {
-  image: UploadedImage;
-  onRemove?: () => void;
-}) {
-  return (
-    <div
-      className="relative cursor-grab overflow-hidden rounded-lg border border-umbrella-line bg-[#F2F3F8] p-2 transition hover:border-[#9DBBFF] active:cursor-grabbing"
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.setData("application/x-umbrella-image-id", image.id);
-        event.dataTransfer.effectAllowed = "copy";
-      }}
-      title="Перетащите на слайд"
-    >
-      <div className="grid h-24 place-items-center rounded-md bg-white">
-        <img
-          src={image.dataUrl}
-          alt={image.name}
-          className="max-h-20 max-w-full object-contain"
-        />
-      </div>
-      <p className="mt-2 truncate text-xs font-semibold text-umbrella-muted">
-        {image.name}
-      </p>
-      <p className="mt-1 text-[11px] font-medium text-umbrella-muted">
-        Перетащите на слайд
-      </p>
-      {onRemove && (
-        <button
-          className="absolute right-2 top-2 rounded-full bg-white p-1 text-umbrella-muted shadow transition hover:text-umbrella-ink"
-          aria-label="Удалить"
-          onClick={onRemove}
-          type="button"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      )}
-    </div>
-  );
-}
-
 function ImageMockupCard({
   image,
   mockup,
-  onMockupChange,
   onRemove,
 }: {
   image: UploadedImage;
-  mockup: MockupChoice;
-  onMockupChange: (mockup: MockupChoice) => void;
+  mockup: MockupType;
   onRemove: () => void;
 }) {
   const option = getMockupOption(mockup);
@@ -2563,31 +1992,16 @@ function ImageMockupCard({
       title="Перетащите на слайд"
     >
       <div className="grid h-24 place-items-center rounded-md bg-white">
-        <MockupFrame image={image} mockup={resolveMockupChoice(image, mockup)} compact />
+        <MockupFrame image={image} mockup={mockup} compact />
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <p className="min-w-0 truncate text-xs font-semibold text-umbrella-muted">
           {image.name}
         </p>
-        <label
-          className="relative inline-flex shrink-0 items-center gap-1 text-xs font-bold text-umbrella-accent"
-          onClick={(event) => event.stopPropagation()}
-        >
+        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-umbrella-accent">
           <Icon className="h-3.5 w-3.5" />
-          <select
-            className="max-w-[98px] cursor-pointer appearance-none bg-transparent pr-4 font-bold outline-none"
-            value={mockup}
-            onChange={(event) => onMockupChange(event.target.value as MockupChoice)}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            {mockupOptions.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-0 h-3 w-3" />
-        </label>
+          {option.label}
+        </span>
       </div>
       <p className="mt-1 text-[11px] font-medium text-umbrella-muted">
         Перетащите на слайд
@@ -2609,28 +2023,22 @@ function SlideCard({
   index,
   assignedImage,
   imageMockup,
-  layout,
   slides,
   theme,
   onThemeToggle,
   onImageDrop,
   onOpen,
-  onAdd,
-  onDelete,
   onRegenerate,
 }: {
   slide: Slide;
   index: number;
   assignedImage?: UploadedImage;
-  imageMockup?: MockupChoice;
-  layout: SlideLayout;
+  imageMockup?: MockupType;
   slides: Slide[];
   theme: SlideTheme;
   onThemeToggle: () => void;
   onImageDrop: (imageId: string) => void;
   onOpen: () => void;
-  onAdd: () => void;
-  onDelete: () => void;
   onRegenerate: () => void;
 }) {
   const isLight = theme === "light";
@@ -2679,7 +2087,6 @@ function SlideCard({
             slide={slide}
             image={assignedImage}
             imageMockup={imageMockup}
-            layout={layout}
             slides={slides}
             theme={theme}
           />
@@ -2733,29 +2140,11 @@ function SlideCard({
           <button
             className="grid h-8 w-8 place-items-center rounded-md border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
             type="button"
-            aria-label="Добавить слайд"
-            onClick={onAdd}
-            title="Добавить слайд"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-          <button
-            className="grid h-8 w-8 place-items-center rounded-md border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
-            type="button"
             aria-label="Перегенерировать слайд"
             onClick={onRegenerate}
             title="Перегенерировать"
           >
             <RotateCcw className="h-4 w-4" />
-          </button>
-          <button
-            className="grid h-8 w-8 place-items-center rounded-md border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-[#FFF1F1] hover:text-[#D23B3B]"
-            type="button"
-            aria-label="Удалить слайд"
-            onClick={onDelete}
-            title="Удалить слайд"
-          >
-            <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -2769,45 +2158,22 @@ function SlideEditorModal({
   theme,
   image,
   imageMockup,
-  layout,
-  panelWidth,
-  versions,
   onClose,
   onChange,
   onThemeChange,
-  onMockupChange,
-  onLayoutChange,
-  onLayoutChangeStart,
-  onPanelWidthChange,
-  onRestoreVersion,
-  onPasteImage,
-  onAddSlide,
-  onDeleteSlide,
   onRegenerate,
 }: {
   slide: Slide;
   index: number;
   theme: SlideTheme;
   image?: UploadedImage;
-  imageMockup?: MockupChoice;
-  layout: SlideLayout;
-  panelWidth: number;
-  versions: Slide[];
+  imageMockup?: MockupType;
   onClose: () => void;
   onChange: (patch: Partial<Pick<Slide, "title" | "body" | "bullets">>) => void;
   onThemeChange: (theme: SlideTheme) => void;
-  onMockupChange: (mockup: MockupChoice) => void;
-  onLayoutChange: (patch: Partial<SlideLayout>) => void;
-  onLayoutChangeStart: () => void;
-  onPanelWidthChange: (width: number) => void;
-  onRestoreVersion: (version: Slide) => void;
-  onPasteImage: () => void;
-  onAddSlide: () => void;
-  onDeleteSlide: () => void;
   onRegenerate: () => void;
 }) {
   const bullets = slide.bullets ?? defaultBulletsByKind[slide.kind];
-  const [isLayoutDrawerOpen, setIsLayoutDrawerOpen] = useState(false);
 
   const updateBullet = (bulletIndex: number, value: string) => {
     const nextBullets = [...bullets];
@@ -2815,39 +2181,9 @@ function SlideEditorModal({
     onChange({ bullets: nextBullets });
   };
 
-  const startPanelResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const startX = event.clientX;
-    const startWidth = panelWidth;
-
-    const handleMove = (moveEvent: PointerEvent) => {
-      onPanelWidthChange(startWidth - (moveEvent.clientX - startX));
-    };
-    const handleUp = () => {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-    };
-
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
-  };
-
-  const applyLayoutPreset = (preset: (typeof slideLayoutPresets)[number]) => {
-    onLayoutChangeStart();
-    onLayoutChange({
-      ...defaultSlideLayout,
-      ...preset.layout,
-      imageTransparency: layout.imageTransparency,
-    });
-    setIsLayoutDrawerOpen(false);
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#07111C]/70 p-6 backdrop-blur-sm">
-      <div
-        className="grid max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-lg bg-white shadow-2xl"
-        style={{ gridTemplateColumns: `minmax(0, 1fr) ${panelWidth}px` }}
-      >
+      <div className="grid max-h-[92vh] w-full max-w-6xl grid-cols-[1.35fr_420px] overflow-hidden rounded-lg bg-white shadow-2xl">
         <div className="bg-[#111827] p-6">
           <div className="mb-4 flex items-center justify-between text-white">
             <div>
@@ -2867,234 +2203,64 @@ function SlideEditorModal({
               slide={slide}
               image={image}
               imageMockup={imageMockup}
-              layout={layout}
               slides={[slide]}
               theme={theme}
-              editable
-              onLayoutChange={onLayoutChange}
-              onLayoutChangeStart={onLayoutChangeStart}
             />
           </div>
         </div>
 
-        <div className="relative overflow-y-auto border-l border-umbrella-line p-5">
-          <div
-            className="absolute bottom-0 left-0 top-0 w-2 cursor-col-resize bg-transparent transition hover:bg-umbrella-accent/20"
-            onPointerDown={startPanelResize}
-            title="Изменить ширину панели"
-          />
+        <div className="overflow-y-auto p-6">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="font-display text-xl font-bold">Редактор слайда</h3>
-            <div className="flex items-center gap-1">
-              <button
-                className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
-                type="button"
-                onClick={onPasteImage}
-                title="Вставить картинку из буфера"
-                aria-label="Вставить картинку из буфера"
-              >
-                <Clipboard className="h-4 w-4" />
-              </button>
-              <button
-                className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
-                type="button"
-                onClick={onAddSlide}
-                title="Добавить слайд"
-                aria-label="Добавить слайд"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-              <button
-                className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
-                type="button"
-                onClick={() => setIsLayoutDrawerOpen(true)}
-                title="Сменить макет"
-                aria-label="Сменить макет"
-              >
-                <Palette className="h-4 w-4" />
-              </button>
-              <button
-                className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
-                type="button"
-                onClick={onRegenerate}
-                title="Перегенерировать"
-                aria-label="Перегенерировать"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </button>
-              <button
-                className="grid h-9 w-9 place-items-center rounded-lg border border-umbrella-line bg-white text-umbrella-muted transition hover:bg-[#FFF1F1] hover:text-[#D23B3B]"
-                type="button"
-                onClick={onDeleteSlide}
-                title="Удалить слайд"
-                aria-label="Удалить слайд"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
+            <h3 className="font-display text-xl font-bold">Редактировать текст</h3>
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-umbrella-line bg-white px-3 py-2 text-sm font-semibold text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-accent"
+              type="button"
+              onClick={onRegenerate}
+            >
+              <RotateCcw className="h-4 w-4" />
+              Перегенерировать
+            </button>
           </div>
 
-          <section className="mt-5 rounded-lg border border-umbrella-line bg-white p-4">
-            <h4 className="text-sm font-bold">Контент</h4>
-            <label className="mt-3 block">
-              <span className="mb-2 block text-xs font-bold text-umbrella-muted">Заголовок</span>
-              <input
-                className="h-11 w-full rounded-lg border border-umbrella-line px-3 text-sm font-semibold outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
-                value={slide.title}
-                onChange={(event) => onChange({ title: event.target.value })}
-              />
-            </label>
+          <div className="mt-5">
+            <ThemeSegmentedControl
+              label="Тема слайда"
+              value={theme}
+              onChange={onThemeChange}
+            />
+          </div>
 
-            <label className="mt-3 block">
-              <span className="mb-2 block text-xs font-bold text-umbrella-muted">Описание</span>
-              <textarea
-                className="min-h-[88px] w-full resize-none rounded-lg border border-umbrella-line px-3 py-2 text-sm leading-5 outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
-                value={slide.body ?? ""}
-                onChange={(event) => onChange({ body: event.target.value })}
-              />
-            </label>
+          <label className="mt-5 block">
+            <span className="mb-2 block text-sm font-bold">Заголовок</span>
+            <input
+              className="h-11 w-full rounded-lg border border-umbrella-line px-3 text-sm font-semibold outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
+              value={slide.title}
+              onChange={(event) => onChange({ title: event.target.value })}
+            />
+          </label>
 
-            <div className="mt-3">
-              <span className="mb-2 block text-xs font-bold text-umbrella-muted">Список пунктов</span>
-              <div className="space-y-2">
-                {bullets.slice(0, 5).map((bullet, bulletIndex) => (
-                  <input
-                    key={bulletIndex}
-                    className="h-10 w-full rounded-lg border border-umbrella-line px-3 text-sm outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
-                    value={bullet}
-                    onChange={(event) => updateBullet(bulletIndex, event.target.value)}
-                  />
-                ))}
-              </div>
-            </div>
-          </section>
+          <label className="mt-4 block">
+            <span className="mb-2 block text-sm font-bold">Описание</span>
+            <textarea
+              className="min-h-[96px] w-full resize-none rounded-lg border border-umbrella-line px-3 py-2 text-sm leading-5 outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
+              value={slide.body ?? ""}
+              onChange={(event) => onChange({ body: event.target.value })}
+            />
+          </label>
 
-          <section className="mt-4 rounded-lg border border-umbrella-line bg-[#FBFBFE] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <h4 className="text-sm font-bold">Дизайн</h4>
-              <button
-                className="text-xs font-bold text-umbrella-accent"
-                type="button"
-                onClick={() => setIsLayoutDrawerOpen(true)}
-              >
-                Сменить макет
-              </button>
+          <div className="mt-4">
+            <span className="mb-2 block text-sm font-bold">Пункты</span>
+            <div className="space-y-2">
+              {bullets.slice(0, 5).map((bullet, bulletIndex) => (
+                <input
+                  key={bulletIndex}
+                  className="h-10 w-full rounded-lg border border-umbrella-line px-3 text-sm outline-none transition focus:border-umbrella-accent focus:ring-4 focus:ring-[#0050FF]/10"
+                  value={bullet}
+                  onChange={(event) => updateBullet(bulletIndex, event.target.value)}
+                />
+              ))}
             </div>
-            <div className="mt-3">
-              <ThemeSegmentedControl
-                label="Тема"
-                value={theme}
-                onChange={onThemeChange}
-              />
-            </div>
-            <div className="mt-3 rounded-lg border border-umbrella-line bg-white p-3">
-              <p className="text-xs font-bold text-umbrella-muted">Макет слайда</p>
-              <button
-                className="mt-2 flex w-full items-center justify-between rounded-md bg-umbrella-soft px-3 py-2 text-sm font-bold text-umbrella-accent"
-                type="button"
-                onClick={() => setIsLayoutDrawerOpen(true)}
-              >
-                {slideLayoutPresets.find((item) => item.value === layout.preset)?.label ?? "Split"}
-                <ChevronDown className="h-4 w-4 -rotate-90" />
-              </button>
-            </div>
-            <div className="mt-3 grid gap-3">
-              <RangeControl
-                label="Размер изображения"
-                value={layout.imageScale}
-                min={60}
-                max={300}
-                onChangeStart={onLayoutChangeStart}
-                onChange={(value) => onLayoutChange({ imageScale: value })}
-              />
-              <RangeControl
-                label="Прозрачность изображения"
-                value={layout.imageTransparency}
-                min={0}
-                max={90}
-                onChangeStart={onLayoutChangeStart}
-                onChange={(value) => onLayoutChange({ imageTransparency: value })}
-              />
-            </div>
-          </section>
-
-          <section className="mt-4 rounded-lg border border-umbrella-line bg-white p-4">
-            <h4 className="text-sm font-bold">Изображения</h4>
-            {image ? (
-              <>
-                <div className="mt-3 grid h-32 place-items-center rounded-lg border border-umbrella-line bg-[#FBFBFE]">
-                  <img
-                    src={image.dataUrl}
-                    alt={image.name}
-                    className="max-h-28 max-w-full object-contain"
-                  />
-                </div>
-                <div className="mt-3 rounded-lg border border-umbrella-line bg-[#FBFBFE] p-3">
-                  <label className="flex items-start gap-3">
-                    <span className="relative mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border border-umbrella-line bg-white">
-                      <input
-                        className="peer absolute inset-0 opacity-0"
-                        type="checkbox"
-                        checked={!imageMockup || imageMockup === "auto"}
-                        onChange={(event) => onMockupChange(event.target.checked ? "auto" : "none")}
-                      />
-                      <span className="h-2.5 w-2.5 rounded-sm bg-transparent peer-checked:bg-umbrella-accent" />
-                    </span>
-                    <span className="text-xs font-semibold text-umbrella-muted">
-                      Автоматически подбирать мокапы
-                    </span>
-                  </label>
-                  <label className="mt-3 block">
-                    <span className="mb-2 block text-xs font-bold text-umbrella-muted">Мокап</span>
-                    <span className="relative flex h-10 items-center rounded-lg border border-umbrella-line bg-white px-3">
-                      <select
-                        className="h-full w-full appearance-none bg-transparent text-sm font-bold outline-none"
-                        value={imageMockup ?? "auto"}
-                        onChange={(event) => onMockupChange(event.target.value as MockupChoice)}
-                      >
-                        {mockupOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 h-4 w-4 text-umbrella-muted" />
-                    </span>
-                  </label>
-                </div>
-              </>
-            ) : (
-              <button
-                className="mt-3 flex h-24 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#9DBBFF] bg-umbrella-soft text-sm font-bold text-umbrella-accent"
-                type="button"
-                onClick={onPasteImage}
-              >
-                <Clipboard className="h-4 w-4" />
-                Вставить из буфера
-              </button>
-            )}
-          </section>
-
-          {versions.length > 0 && (
-            <div className="mt-5 rounded-lg border border-umbrella-line bg-white p-4">
-              <div className="flex items-center gap-2">
-                <History className="h-4 w-4 text-umbrella-accent" />
-                <h4 className="text-sm font-bold">История версий</h4>
-              </div>
-              <div className="mt-3 space-y-2">
-                {versions.map((version, versionIndex) => (
-                  <button
-                    key={`${version.title}-${versionIndex}`}
-                    className="w-full rounded-md border border-umbrella-line px-3 py-2 text-left text-xs font-semibold transition hover:border-[#9DBBFF] hover:bg-umbrella-soft"
-                    type="button"
-                    onClick={() => onRestoreVersion(version)}
-                  >
-                    Версия {versions.length - versionIndex}: {version.title}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          </div>
 
           <button
             className="mt-6 h-11 w-full rounded-lg bg-umbrella-accent px-4 text-sm font-bold text-white transition hover:bg-[#0042D6]"
@@ -3103,54 +2269,6 @@ function SlideEditorModal({
           >
             Готово
           </button>
-
-          {isLayoutDrawerOpen && (
-            <div className="fixed inset-0 z-[60] flex justify-end bg-[#07111C]/40">
-              <div className="h-full w-full max-w-md overflow-y-auto bg-white p-5 shadow-2xl">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-display text-xl font-bold">Макеты</h3>
-                  <button
-                    className="rounded-md p-2 text-umbrella-muted transition hover:bg-umbrella-soft hover:text-umbrella-ink"
-                    type="button"
-                    onClick={() => setIsLayoutDrawerOpen(false)}
-                    aria-label="Закрыть макеты"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="mt-4 grid gap-3">
-                  {slideLayoutPresets.map((preset) => (
-                    <button
-                      key={preset.value}
-                      className={`rounded-lg border p-3 text-left transition ${
-                        layout.preset === preset.value
-                          ? "border-umbrella-accent bg-umbrella-soft"
-                          : "border-umbrella-line bg-white hover:border-[#9DBBFF]"
-                      }`}
-                      type="button"
-                      onClick={() => applyLayoutPreset(preset)}
-                    >
-                      <div className="slide-aspect overflow-hidden rounded-md bg-[#07111C] p-3">
-                        <div className="h-1 w-10 bg-umbrella-accent" />
-                        <div className="mt-4 grid h-[70%] grid-cols-[1fr_0.8fr] gap-3">
-                          <div className="space-y-2">
-                            <div className="h-4 rounded bg-white" />
-                            <div className="h-2 rounded bg-white/60" />
-                            <div className="h-2 w-2/3 rounded bg-white/60" />
-                          </div>
-                          <div className="rounded bg-umbrella-accent/40" />
-                        </div>
-                      </div>
-                      <p className="mt-3 text-sm font-bold">{preset.label}</p>
-                      <p className="mt-1 text-xs leading-4 text-umbrella-muted">
-                        {preset.description}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -3163,35 +2281,17 @@ function MockupFrame({
   compact = false,
 }: {
   image: UploadedImage;
-  mockup: Exclude<MockupChoice, "auto">;
+  mockup: MockupType;
   compact?: boolean;
 }) {
-  if (mockup === "none") {
-    return (
-      <img
-        src={image.dataUrl}
-        alt={image.name}
-        className={`rounded-md object-contain shadow-card ${
-          compact ? "h-20 w-full" : "max-h-[190px] w-36"
-        }`}
-      />
-    );
-  }
-
-  if (mockup === "iphone" || mockup === "android") {
+  if (mockup === "iphone") {
     return (
       <div
-        className={`relative overflow-hidden rounded-[20px] border-[5px] ${
-          mockup === "android" ? "border-[#232631] bg-[#232631]" : "border-[#1E2028] bg-[#1E2028]"
-        } shadow-card ${
+        className={`relative overflow-hidden rounded-[20px] border-[5px] border-[#1E2028] bg-[#1E2028] shadow-card ${
           compact ? "h-20 w-11" : "h-full max-h-[190px] w-24"
         }`}
       >
-        <span
-          className={`absolute left-1/2 top-1 z-10 h-1.5 -translate-x-1/2 rounded-full ${
-            mockup === "android" ? "w-3 bg-[#596070]" : "w-6 bg-[#1E2028]"
-          }`}
-        />
+        <span className="absolute left-1/2 top-1 z-10 h-1.5 w-6 -translate-x-1/2 rounded-full bg-[#1E2028]" />
         <img
           src={image.dataUrl}
           alt={image.name}
@@ -3212,22 +2312,6 @@ function MockupFrame({
           />
         </div>
         <div className="mx-auto h-2 w-[112%] -translate-x-[5%] rounded-b-lg bg-[#D8DAE2]" />
-      </div>
-    );
-  }
-
-  if (mockup === "desktop") {
-    return (
-      <div className={compact ? "w-28" : "w-40"}>
-        <div className="overflow-hidden rounded-md border-[5px] border-[#232631] bg-[#232631] shadow-card">
-          <img
-            src={image.dataUrl}
-            alt={image.name}
-            className={`${compact ? "h-14" : "h-24"} w-full object-cover`}
-          />
-        </div>
-        <div className="mx-auto h-5 w-10 bg-[#C8D2E2]" />
-        <div className="mx-auto h-1.5 w-16 rounded bg-[#AEBBD0]" />
       </div>
     );
   }
@@ -3256,22 +2340,14 @@ function SlidePreview({
   slide,
   image,
   imageMockup,
-  layout,
   slides,
   theme,
-  editable = false,
-  onLayoutChange,
-  onLayoutChangeStart,
 }: {
   slide: Slide;
   image?: UploadedImage;
-  imageMockup?: MockupChoice;
-  layout: SlideLayout;
+  imageMockup?: MockupType;
   slides: Slide[];
   theme: SlideTheme;
-  editable?: boolean;
-  onLayoutChange?: (patch: Partial<SlideLayout>) => void;
-  onLayoutChangeStart?: () => void;
 }) {
   const isLight = theme === "light";
   const previewBg = isLight ? "bg-[#F7F7F7]" : "bg-[#07111C]";
@@ -3279,46 +2355,6 @@ function SlidePreview({
   const secondaryText = isLight ? "text-[#6B6D75]" : "text-white";
   const panelBg = isLight ? "bg-white" : "bg-white/5";
   const imageOpacity = isLight ? "opacity-20" : "opacity-35";
-  const resolvedMockup = image ? resolveMockupChoice(image, imageMockup) : "none";
-
-  const startElementDrag = (
-    target: "text" | "image",
-    event: ReactPointerEvent<HTMLElement>,
-  ) => {
-    if (!editable || !onLayoutChange) return;
-    event.preventDefault();
-    event.stopPropagation();
-    onLayoutChangeStart?.();
-
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const startLayout = layout;
-
-    const handleMove = (moveEvent: PointerEvent) => {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-
-      if (target === "image") {
-        onLayoutChange({
-          imageX: startLayout.imageX + dx,
-          imageY: startLayout.imageY + dy,
-        });
-        return;
-      }
-
-      onLayoutChange({
-        textX: startLayout.textX + dx,
-        textY: startLayout.textY + dy,
-      });
-    };
-    const handleUp = () => {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-    };
-
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
-  };
 
   if (slide.kind === "cover" || slide.kind === "final") {
     return (
@@ -3430,15 +2466,7 @@ function SlidePreview({
         className={`absolute inset-y-0 right-0 h-full w-1/2 object-cover ${isLight ? "opacity-15" : "opacity-25"}`}
       />
       <div className="absolute right-4 top-6 h-28 w-28 rounded-full border-[18px] border-umbrella-accent/50" />
-      <div
-        className={`relative z-10 rounded-md ${
-          editable ? "cursor-move outline outline-1 outline-transparent hover:outline-umbrella-accent" : ""
-        }`}
-        onPointerDown={(event) => startElementDrag("text", event)}
-        style={{
-          transform: `translate(${layout.textX}px, ${layout.textY}px)`,
-        }}
-      >
+      <div className="relative z-10">
         <div className="h-1 w-12 bg-umbrella-accent" />
         <h3 className="mt-4 font-display text-xl font-bold">{slide.title}</h3>
         <div className="mt-7 space-y-3">
@@ -3455,23 +2483,11 @@ function SlidePreview({
         </div>
       </div>
       {slide.kind === "image" && image ? (
-        <div
-          className={`relative z-10 flex h-full w-36 items-center justify-center rounded-md ${
-            editable ? "cursor-move outline outline-1 outline-transparent hover:outline-umbrella-accent" : ""
-          }`}
-          onPointerDown={(event) => startElementDrag("image", event)}
-          style={{
-            transform: `translate(${layout.imageX}px, ${layout.imageY}px) scale(${layout.imageScale / 100})`,
-            opacity: (100 - layout.imageTransparency) / 100,
-          }}
-        >
+        <div className="relative z-10 flex h-full w-36 items-center justify-center">
           <MockupFrame
             image={image}
-            mockup={resolvedMockup}
+            mockup={imageMockup ?? inferImageMockup(image)}
           />
-          {editable && (
-            <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-umbrella-accent shadow" />
-          )}
         </div>
       ) : (
         <div className="relative z-10 mt-16 hidden h-16 w-16 rounded-full bg-umbrella-accent/30 md:block" />
